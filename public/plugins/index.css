@@ -1,0 +1,126 @@
+html, body {
+    margin: 0px;
+    overflow: hidden;
+}
+
+/* Shared plugin styles */
+.plugin-wrapper {
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background-color: #f5f5f5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.plugin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.plugin-header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+}
+
+.plugin-count {
+    font-size: 14px;
+    color: #666;
+    background-color: #e8e8e8;
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.plugin-container {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    min-height: 0; /* prevent flex item from overflowing */
+}
+
+.plugin-sidebar {
+    width: 220px;
+    min-width: 180px;
+    max-width: 500px;
+    resize: horizontal;
+    overflow: auto;
+    border-right: 1px solid #e0e0e0;
+    padding-right: 20px;
+    box-sizing: border-box;
+}
+
+.plugin-main {
+    flex: 1;
+    overflow: auto;
+}
+
+.folder-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 2px;
+    transition: background-color 0.2s ease;
+}
+
+.folder-item:hover {
+    background-color: #f0f0f0;
+}
+
+.folder-item.active {
+    background-color: #e0e0e0;
+}
+
+.folder-item.subfolder {
+    padding-left: 32px;
+    font-size: 0.9em;
+}
+
+.folder-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.folder-count {
+    margin-left: auto;
+    font-size: 12px;
+    color: #666;
+    background-color: #e8e8e8;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .plugin-container {
+        flex-direction: column;
+    }
+    
+    .plugin-sidebar {
+        width: 100%;
+        margin-bottom: 20px;
+        border-right: none;
+        padding-right: 0;
+    }
+}
+
+@media (max-width: 600px) {
+    .plugin-wrapper {
+        padding: 15px;
+    }
+    
+    .plugin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}

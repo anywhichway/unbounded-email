@@ -1,0 +1,270 @@
+{
+    "user": {
+        "screenName": "syblackwell",
+        "accounts": {
+            "syblackwell@anywhichway.com": {
+                "type": "Google",
+                "name": "G",
+                "emails": [
+                    {
+                        "to": ["syblackwell@anywhichway.com"],
+                        "from": "newsletter@example.com",
+                        "date": "Mon Sep 01 2025 09:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Your Weekly Newsletter",
+                        "textBody": "Here is your weekly newsletter.",
+                        "htmlBody": "<p>Here is your weekly newsletter.</p>"
+                    },
+                    {
+                        "to": ["syblackwell@anywhichway.com"],
+                        "from": "support@example.com",
+                        "date": "Mon Sep 01 2025 09:30:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Your support ticket has been updated",
+                        "textBody": "Your support ticket #12345 has been updated.",
+                        "htmlBody": "<p>Your support ticket #12345 has been updated.</p>"
+                    },
+                    {
+                        "to": ["friend@example.com"],
+                        "from": "syblackwell@anywhichway.com",
+                        "date": "Mon Sep 01 2025 10:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Catching up",
+                        "textBody": "Hey, how have you been? We should catch up soon.",
+                        "htmlBody": "<p>Hey, how have you been? We should catch up soon.</p>",
+                        "sent": true
+                    }
+                ],
+                "contacts": [
+                    {
+                        "screenName": "Alice",
+                        "email": "alice@example.com",
+                        "group": "Friends",
+                        "frequentlyContacted": true
+                    },
+                    {
+                        "screenName": "Bob",
+                        "email": "bob@example.com",
+                        "group": "Work"
+                    },
+                    {
+                        "screenName": "Mom",
+                        "email": "mom@example.com",
+                        "group": "Family"
+                    }
+                ],
+                "calendar": [
+                    {
+                        "title": "Team Meeting",
+                        "date": "2025-09-03",
+                        "startTime": "10:00",
+                        "endTime": "11:00",
+                        "description": "Weekly team sync"
+                    },
+                    {
+                        "title": "Lunch with Bob",
+                        "date": "2025-09-05",
+                        "startTime": "12:30",
+                        "endTime": "13:30"
+                    },
+                    {
+                        "title": "Labor Day",
+                        "date": "2025-09-01",
+                        "category": "Holiday"
+                    }
+                ]
+            },
+            "syblackwell@hotmail.com": {
+                "type": "Microsost",
+                "name": "M",
+                "emails": [
+                    {
+                        "to": ["julianaperez_8@msn.com"],
+                        "from": "syblackwell@hotmail.com",
+                        "date": "Sun Aug 31 2025 08:04:07 GMT-0700 (Pacific Daylight Time)",
+                        "received": [
+
+                        ],
+                        "subject": "Trip",
+                        "textBody": "Have a good trip!\n-----BEGIN ENCRYPTED DATA-----\nI love you!\n-----END ENCRYPTED DATA-----",
+                        "htmlBody": "<p>Have a good trip</p><pre class='encrypted'><p>I love you!</p></pre>"
+                    },
+                    {
+                        "to": ["syblackwell@hotmail.com"],
+                        "from": "julianaperez_8@msn.com",
+                        "date": "Sun Aug 31 2025 08:008:07 GMT-0700 (Pacific Daylight Time)",
+                        "received": [
+
+                        ],
+                        "subject": "Re: Trip",
+                        "textBody": "Thanks!\n-----BEGIN ENCRYPTED DATA-----\nI love you too!\n-----END ENCRYPTED DATA-----",
+                        "htmlBody": "<p>Have a good trip</p><pre class='encrypted'><p>I love you too!</p></pre>"
+                    },
+                    {
+                        "to": ["syblackwell@hotmail.com"],
+                        "from": "starred@example.com",
+                        "date": "Mon Sep 01 2025 10:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Starred Email",
+                        "textBody": "This is a starred email.",
+                        "htmlBody": "<p>This is a starred email.</p>",
+                        "starred": true
+                    },
+                    {
+                        "to": ["syblackwell@hotmail.com"],
+                        "from": "snoozed@example.com",
+                        "date": "Mon Sep 01 2025 11:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Snoozed Email",
+                        "textBody": "This is a snoozed email.",
+                        "htmlBody": "<p>This is a snoozed email.</p>",
+                        "snoozed": true
+                    },
+                    {
+                        "to": ["syblackwell@hotmail.com"],
+                        "from": "important@example.com",
+                        "date": "Mon Sep 01 2025 12:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Important Email",
+                        "textBody": "This is an important email.",
+                        "htmlBody": "<p>This is an important email.</p>",
+                        "important": true
+                    },
+                    {
+                        "to": ["sent@example.com"],
+                        "from": "syblackwell@hotmail.com",
+                        "date": "Mon Sep 01 2025 13:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Sent Email",
+                        "textBody": "This is a sent email.",
+                        "htmlBody": "<p>This is a sent email.</p>",
+                        "sent": true
+                    },
+                    {
+                        "to": [""],
+                        "from": "syblackwell@hotmail.com",
+                        "date": "Mon Sep 01 2025 14:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Draft Email",
+                        "textBody": "This is a draft email.",
+                        "htmlBody": "<p>This is a draft email.</p>",
+                        "draft": true
+                    },
+                    {
+                        "to": ["syblackwell@hotmail.com"],
+                        "from": "spam@example.com",
+                        "date": "Mon Sep 01 2025 15:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Spam Email",
+                        "textBody": "This is a spam email.",
+                        "htmlBody": "<p>This is a spam email.</p>",
+                        "spam": true
+                    },
+                    {
+                        "to": ["syblackwell@hotmail.com"],
+                        "from": "trash@example.com",
+                        "date": "Mon Sep 01 2025 16:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Trash Email",
+                        "textBody": "This is a trash email.",
+                        "htmlBody": "<p>This is a trash email.</p>",
+                        "trash": true
+                    },
+                    {
+                        "to": ["scheduled@example.com"],
+                        "from": "syblackwell@hotmail.com",
+                        "date": "Tue Sep 02 2025 10:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "Scheduled Email",
+                        "textBody": "This is a scheduled email.",
+                        "htmlBody": "<p>This is a scheduled email.</p>",
+                        "scheduled": true
+                    }
+                ],
+                "contacts": [
+                    {
+                        "screenName": "Juliana",
+                        "email": "julianaperez_8@msn.com",
+                        "group": "Family",
+                        "birthdate": "1960-06-13",
+                        "frequentlyContacted": true
+                    },
+                    {
+                        "screenName": "Charlie",
+                        "email": "charlie@example.com",
+                        "group": "Friends"
+                    },
+                    {
+                        "screenName": "David",
+                        "email": "david@example.com",
+                        "group": "Work",
+                        "frequentlyContacted": true
+                    },
+                    {
+                        "screenName": "Dad",
+                        "email": "dad@example.com",
+                        "group": "Family",
+                        "frequentlyContacted": true
+                    }
+                ],
+                "calendar": [
+                    {
+                        "title": "Doctor Appointment",
+                        "date": "2025-09-10",
+                        "startTime": "14:00",
+                        "endTime": "15:00",
+                        "description": "Annual check-up"
+                    },
+                    {
+                        "title": "Juliana's Birthday Party",
+                        "date": "2025-09-15",
+                        "startTime": "18:00"
+                    }
+                ]
+            }
+        }
+    },
+    "ui": {
+        "plugins": [
+            {
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-icon",
+                    "title": "Email",
+                    "href": "./plugins/email/index.html",
+                    "target": "#pluginView"
+                },
+                "children": ["✉️"]
+            },
+            {
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-icon",
+                    "title": "Contacts",
+                    "href": "./plugins/contacts/index.html",
+                    "target": "#pluginView"
+                },
+                "children": ["👥"]
+            },
+            {
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-icon",
+                    "title": "Calendar",
+                    "href": "./plugins/calendar/index.html",
+                    "target": "#pluginView"
+                },
+                "children": ["📅"]
+            },
+            {
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-icon",
+                    "title": "Tasks",
+                    "href": "./plugins/tasks/index.html",
+                    "target": "#pluginView"
+                },
+                "children": ["✓"]
+            },
+            {
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-icon",
+                    "title": "Chat",
+                    "href": "./plugins/chat/index.html",
+                    "target": "#pluginView"
+                },
+                "children": ["💬"]
+            }
+        ]
+    }
+}

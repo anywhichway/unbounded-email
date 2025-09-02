@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Unbounded: Contacts</title>
+        <link rel="stylesheet" href="../index.css">
+        <link rel="stylesheet" href="./index.css">
+        <script src="../../assets/js/lightview-core.js"></script>
+        <script src="../../assets/js/lightview-dom.js"></script>
+        <script src="../../assets/js/lightview-href.js"></script>
+        <script src="../../assets/js/lightview-iframe.js"></script>
+        <script src="./index.js"></script>
+    </head>
+    <body>
+         <script type="module" id="init">
+            const {render} = Lightview;
+            const {local} = lvIFrame;
+            const user = await lvIFrame.import("./");
+            
+            const contacts = await getContactsFromAccounts(user);
+            
+            // Get user accounts from user structure based on JSON format
+            const userAccounts = user.accounts || {};
+            const accountEmails = Object.keys(userAccounts);
+
+            // State for filtering
+            let filteredContacts = contacts;
+            let currentAccount = null;
+
+            // Create folder structure with subfolders
+            const folders = [
+                { 
+                    name: "All Contacts", 
+                    icon: "fas fa-users", 
+                    count: contacts.length,
+                    subfolders: accountEmails.map(email => ({
+                        email: email,
+                        name: email,
+                        count: contacts.filter(c => c.sourceAccount === email).length
+                    }))
+                },
+                { name: "Family", icon: "fas fa-home", count: contacts.filter(c => c.group === 'Family').length },
+                { name: "Friends", icon: "fas fa-user-friends", count: contacts.filter(c => c.group === 'Friends').length },
+                { name: "Work", icon: "fas fa-briefcase", count: contacts.filter(c => c.group === 'Work').length },
+                { name: "Frequently Contacted", icon: "fas fa-star", count: contacts.filter(c => c.frequentlyContacted).length },
+            ];
+
+            window.filterContactsByAccount = (accountEmail) => {
+                if (accountEmail) {
+                    filteredContacts = contacts.filter(c => c.sourceAccount === accountEmail);
+                } else {
+                    filteredContacts = contacts;
+                }
+                currentAccount = accountEmail;
+                renderContactList();
+            }
+
+            window.filterContactsByFolder = (folderName) => {
+                currentAccount = null;
+                const lowerCaseFolderName = folderName.toLowerCase();
+                
+                switch (lowerCaseFolderName) {
+                    case 'family':
+                        filteredContacts = contacts.filter(c => c.group === 'Family');
+                        break;
+                    case 'friends':
+                        filteredContacts = contacts.filter(c => c.group === 'Friends');
+                        break;
+                    case 'work':
+                        filteredContacts = contacts.filter(c => c.group === 'Work');
+                        break;
+                    case 'frequently contacted':
+                        filteredContacts = contacts.filter(c => c.frequentlyContacted);
+                        break;
+                    default:
+                        filteredContacts = contacts;
+                        break;
+                }
+                renderContactList();
+            }
+
+            // Function to render contact list based on current filter
+            const renderContactList = () => {
+                const filteredContactItems = filteredContacts.length > 0
+                    ? filteredContacts.map(contact => ({
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "contact-item"
+                        },
+                        "children": [
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "contact-avatar"
+                                },
+                                "children": [(contact.screenName || contact.email).charAt(0).toUpperCase()]
+                            },
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "contact-info"
+                                },
+                                "children": [
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "contact-name"
+                                        },
+                                        "children": [contact.screenName || contact.email]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "contact-email"
+                                        },
+                                        "children": [contact.email]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "contact-type"
+                                        },
+                                        "children": [contact.accountType]
+                                    }
+                                ]
+                            }
+                        ]
+                    }))
+                    : [{
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "no-contacts"
+                        },
+                        "children": ["No contacts found"]
+                    }];
+
+                // Update contact count based on filtered contacts
+                const contactCountEl = document.querySelector('.contacts-count');
+                if (contactCountEl) {
+                    contactCountEl.textContent = `${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}`;
+                }
+                
+                // Update contact list
+                const contactListEl = document.querySelector('.contacts-list');
+                if (contactListEl) {
+                    render({
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "contacts-list"
+                        },
+                        "children": filteredContactItems
+                    }, {replaceEl: contactListEl});
+                }
+            };
+
+            const folderItems = [];
+            folders.forEach(folder => {
+                folderItems.push(createFolderItem(folder));
+                
+                if (folder.name === "All Contacts" && folder.subfolders && folder.subfolders.length > 0) {
+                    folder.subfolders.forEach(subfolder => {
+                        folderItems.push(createFolderItem(subfolder, true, subfolder.email));
+                    });
+                }
+            });
+
+            // Create contact items
+            const contactItems = filteredContacts.map(contact => ({
+                    "tagName": "div",
+                    "attributes": {
+                        "class": "contact-item"
+                    },
+                    "children": [
+                        {
+                            "tagName": "div",
+                            "attributes": {
+                                "class": "contact-avatar"
+                            },
+                            "children": [(contact.screenName || contact.email).charAt(0).toUpperCase()]
+                        },
+                        {
+                            "tagName": "div",
+                            "attributes": {
+                                "class": "contact-info"
+                            },
+                            "children": [
+                                {
+                                    "tagName": "div",
+                                    "attributes": {
+                                        "class": "contact-name"
+                                    },
+                                    "children": [contact.screenName || contact.email]
+                                },
+                                {
+                                    "tagName": "div",
+                                    "attributes": {
+                                        "class": "contact-email"
+                                    },
+                                    "children": [contact.email]
+                                },
+                                {
+                                    "tagName": "div",
+                                }
+                            ]
+                        }
+                    ]
+                }));
+            
+            render({
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-wrapper"
+                },
+                "children": [
+                    {
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "plugin-header"
+                        },
+                        "children": [
+                            {
+                                "tagName": "h1",
+                                "children": ["Contacts"]
+                            },
+                            {
+                                "tagName": "span",
+                                "attributes": {
+                                    "class": "plugin-count"
+                                },
+                                "children": [`${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}`]
+                            }
+                        ]
+                    },
+                    {
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "plugin-container"
+                        },
+                        "children": [
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "plugin-sidebar"
+                                },
+                                "children": folderItems
+                            },
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "plugin-main"
+                                },
+                                "children": [
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "contacts-list"
+                                        },
+                                        "children": contactItems
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }, {replaceEl: document.getElementById("init")});
+        </script>
+    </body>
+</html>

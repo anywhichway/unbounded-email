@@ -1,0 +1,9 @@
+{
+  "tagName":"div",
+  "attributes": {
+    "style": "font-size:${fontSize}px; color:blue;"
+  },
+  "children": [
+      "hello world from json!"
+    ]
+}

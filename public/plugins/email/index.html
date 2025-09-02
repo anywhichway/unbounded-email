@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link rel="stylesheet" href="../index.css">
+        <link rel="stylesheet" href="./index.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <script src="../../assets/js/lightview-core.js"></script>
+        <script src="../../assets/js/lightview-dom.js"></script>
+        <script src="../../assets/js/lightview-href.js"></script>
+        <script src="../../assets/js/lightview-iframe.js"></script>
+        <script src="./index.js"></script>
+    </head>
+    <body>
+        <div id="app"></div>
+         <script type="module" id="init">
+            const {render} = Lightview;
+            const {local} = lvIFrame;
+            const user = await local(lvIFrame.import("./"));
+            
+            const emails = await getEmailsFromAccounts(user);
+            
+            // Create email items
+            const emailItems = emails.length > 0 
+                ? emails.map(email => ({
+                    "tagName": "div",
+                    "attributes": {
+                        "class": `email-item ${email.unread ? 'unread' : ''}`,
+                        "data-email-id": email.id
+                    },
+                    "children": [
+                        {
+                            "tagName": "div",
+                            "attributes": {
+                                "class": "email-avatar"
+                            },
+                            "children": [(email.from || 'Unknown').charAt(0).toUpperCase()]
+                        },
+                        {
+                            "tagName": "div",
+                            "attributes": {
+                                "class": "email-info"
+                            },
+                            "children": [
+                                {
+                                    "tagName": "div",
+                                    "attributes": {
+                                        "class": "email-sender"
+                                    },
+                                    "children": [email.from]
+                                },
+                                {
+                                    "tagName": "div",
+                                    "attributes": {
+                                        "class": "email-subject"
+                                    },
+                                    "children": [email.subject]
+                                },
+                                {
+                                    "tagName": "div",
+                                    "attributes": {
+                                        "class": "email-preview"
+                                    },
+                                    "children": [email.preview]
+                                },
+                                {
+                                    "tagName": "div",
+                                    "attributes": {
+                                        "class": "email-meta"
+                                    },
+                                    "children": [
+                                        {
+                                            "tagName": "div",
+                                            "attributes": {
+                                                "class": "email-date"
+                                            },
+                                            "children": [new Date(email.date).toLocaleDateString()]
+                                        },
+                                        {
+                                            "tagName": "div",
+                                            "attributes": {
+                                                "class": "email-account"
+                                            },
+                                            "children": [email.accountType]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }))
+                : [{
+                    "tagName": "div",
+                    "attributes": {
+                        "class": "no-emails"
+                    },
+                    "children": ["No emails found"]
+                }];
+            
+            // Get user accounts from user structure based on JSON format
+            const userAccounts = user.accounts || {};
+            const accountEmails = Object.keys(userAccounts);
+            
+            // State for filtering
+            let filteredEmails = emails;
+            let currentAccount = null;
+            
+            // Create folder structure with subfolders
+            const folders = [
+                { 
+                    name: "Inbox", 
+                    icon: "fas fa-inbox", 
+                    count: emails.filter(e => !e.sent && !e.draft && !e.spam && !e.trash).length,
+                    subfolders: accountEmails.map(email => ({
+                        email: email,
+                        name: email,
+                        count: emails.filter(e => e.accountType === email && !e.sent && !e.draft && !e.spam && !e.trash).length
+                    }))
+                },
+                { name: "Starred", icon: "fas fa-star", count: emails.filter(e => e.starred).length },
+                { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
+                { name: "Important", icon: "fas fa-exclamation-circle", count: emails.filter(e => e.important).length },
+                { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.sent).length },
+                { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.draft).length },
+                { name: "Categories", icon: "fas fa-tags", count: 0 },
+                { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.scheduled).length },
+                { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.spam).length },
+                { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.trash).length }
+            ];
+
+            window.filterEmailsByAccount = (accountEmail) => {
+                if (accountEmail) {
+                    // Filter for a specific account's inbox
+                    filteredEmails = emails.filter(e => e.sourceAccount === accountEmail && !e.sent && !e.draft && !e.spam && !e.trash);
+                } else {
+                    // Filter for all accounts' inbox
+                    filteredEmails = emails.filter(e => !e.sent && !e.draft && !e.spam && !e.trash);
+                }
+                currentAccount = accountEmail;
+                renderEmailList();
+            }
+
+            window.filterEmailsByFolder = (folderName) => {
+                currentAccount = null;
+                const lowerCaseFolderName = folderName.toLowerCase();
+                
+                switch (lowerCaseFolderName) {
+                    case 'starred':
+                        filteredEmails = emails.filter(e => e.starred);
+                        break;
+                    case 'snoozed':
+                        filteredEmails = emails.filter(e => e.snoozed);
+                        break;
+                    case 'important':
+                        filteredEmails = emails.filter(e => e.important);
+                        break;
+                    case 'sent':
+                        filteredEmails = emails.filter(e => e.sent);
+                        break;
+                    case 'drafts':
+                        filteredEmails = emails.filter(e => e.draft);
+                        break;
+                    case 'scheduled':
+                        filteredEmails = emails.filter(e => e.scheduled);
+                        break;
+                    case 'spam':
+                        filteredEmails = emails.filter(e => e.spam);
+                        break;
+                    case 'trash':
+                        filteredEmails = emails.filter(e => e.trash);
+                        break;
+                    default:
+                        filteredEmails = emails.filter(e => !e.sent && !e.draft && !e.spam && !e.trash);
+                        break;
+                }
+                renderEmailList();
+            }
+
+            
+            // Function to render email list based on current filter
+            const renderEmailList = () => {
+                const filteredEmailItems = filteredEmails.length > 0 
+                    ? filteredEmails.map(email => ({
+                        "tagName": "div",
+                        "attributes": {
+                            "class": `email-item ${email.unread ? 'unread' : ''}`,
+                            "data-email-id": email.id
+                        },
+                        "children": [
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "email-avatar"
+                                },
+                                "children": [(email.from || 'Unknown').charAt(0).toUpperCase()]
+                            },
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "email-info"
+                                },
+                                "children": [
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-sender"
+                                        },
+                                        "children": [email.from]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-subject"
+                                        },
+                                        "children": [email.subject]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-preview"
+                                        },
+                                        "children": [email.preview]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-meta"
+                                        },
+                                        "children": [
+                                            {
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-date"
+                                                },
+                                                "children": [new Date(email.date).toLocaleDateString()]
+                                            },
+                                            {
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-account"
+                                                },
+                                                "children": [email.accountType]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }))
+                    : [{
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "no-emails"
+                        },
+                        "children": ["No emails found"]
+                    }];
+
+                // Update email count based on filtered emails
+                const emailCountEl = document.querySelector('.email-count');
+                if (emailCountEl) {
+                    emailCountEl.textContent = `${filteredEmails.length} email${filteredEmails.length !== 1 ? 's' : ''}`;
+                }
+                
+                // Update email list
+                const emailListEl = document.querySelector('.email-list');
+                if (emailListEl) {
+                    render({
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "email-list"
+                        },
+                        "children": filteredEmailItems
+                    }, {replaceEl: emailListEl});
+                }
+            };
+
+        
+            const folderItems = [];
+            folders.forEach(folder => {
+                folderItems.push(createFolderItem(folder));
+                
+                // Add subfolders for Inbox
+                if (folder.name === "Inbox" && folder.subfolders && folder.subfolders.length > 0) {
+                    folder.subfolders.forEach(subfolder => {
+                        folderItems.push(createFolderItem(subfolder, true, subfolder.email));
+                    });
+                }
+            });
+
+            // Initial render
+            render({
+                tagName: 'div',
+                attributes: { class: 'plugin-wrapper' },
+                children: [
+                    {
+                        tagName: 'div',
+                        attributes: { class: 'plugin-header' },
+                        children: [
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'email-header-left' },
+                                children: [
+                                    {
+                                        tagName: 'h1',
+                                        children: ['Inbox']
+                                    },
+                                    {
+                                        tagName: 'span',
+                                        attributes: { class: 'plugin-count' },
+                                        children: [`${filteredEmails.length} email${filteredEmails.length !== 1 ? 's' : ''}`]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        tagName: 'div',
+                        attributes: { class: 'plugin-container' },
+                        children: [
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'plugin-sidebar' },
+                                children: folderItems
+                            },
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'plugin-main' },
+                                children: [
+                                    {
+                                        tagName: 'div',
+                                        attributes: { class: 'email-list' },
+                                        children: emailItems
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }, {replaceEl: document.getElementById("app")});
+        </script>
+    </body>
+</html>

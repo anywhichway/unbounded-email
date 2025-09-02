@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link rel="stylesheet" href="../index.css">
+        <link rel="stylesheet" href="./index.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <script src="../../assets/js/lightview-core.js"></script>
+        <script src="../../assets/js/lightview-dom.js"></script>
+        <script src="../../assets/js/lightview-href.js"></script>
+        <script src="../../assets/js/lightview-iframe.js"></script>
+        <script src="./index.js"></script>
+    </head>
+    <body>
+        <div id="app"></div>
+         <script type="module" id="init">
+            const {render} = Lightview;
+            const {local} = lvIFrame;
+            const user = await local(lvIFrame.import("./"));
+
+            let events = [];
+            let filteredEvents = [];
+            let currentFilterType = 'folder';
+            let currentFilterValue = 'All Calendars';
+            let currentDate = new Date();
+
+            const applyFilters = () => {
+                if (currentFilterType === 'account') {
+                    if (currentFilterValue) {
+                        filteredEvents = events.filter(e => e.sourceAccount === currentFilterValue);
+                    } else {
+                        filteredEvents = events;
+                    }
+                } else if (currentFilterType === 'folder') {
+                    const lowerCaseFolderName = currentFilterValue.toLowerCase();
+                    switch (lowerCaseFolderName) {
+                        case 'birthdays':
+                            filteredEvents = events.filter(e => e.category === 'Birthday');
+                            break;
+                        case 'holidays':
+                            filteredEvents = events.filter(e => e.category === 'Holiday');
+                            break;
+                        default:
+                            filteredEvents = events;
+                            break;
+                    }
+                } else {
+                    filteredEvents = events;
+                }
+            };
+
+            const renderCalendar = async () => {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const monthName = currentDate.toLocaleString('default', { month: 'long' });
+
+                events = await getEventsFromAccounts(user, year);
+                applyFilters();
+
+                const firstDayOfMonth = new Date(year, month, 1);
+                const lastDayOfMonth = new Date(year, month + 1, 0);
+
+                const firstDayOfWeek = firstDayOfMonth.getDay();
+                const totalDays = lastDayOfMonth.getDate();
+
+                const days = [];
+                const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
+                    tagName: 'div',
+                    attributes: { class: 'calendar-day-header' },
+                    children: [day]
+                }));
+
+                for (let i = 0; i < firstDayOfWeek; i++) {
+                    days.push({ tagName: 'div', attributes: { class: 'calendar-day empty' } });
+                }
+
+                for (let day = 1; day <= totalDays; day++) {
+                    const date = new Date(year, month, day);
+                    const today = new Date();
+                    const isToday = date.toDateString() === today.toDateString();
+
+                    const dayEvents = filteredEvents.filter(event => {
+                        const [yearStr, monthStr, dayStr] = event.date.split('-');
+                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                        return eventDate.getFullYear() === year &&
+                               eventDate.getMonth() === month &&
+                               eventDate.getDate() === day;
+                    });
+
+                    days.push({
+                        tagName: 'div',
+                        attributes: { class: `calendar-day ${isToday ? 'today' : ''}` },
+                        children: [
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'day-number' },
+                                children: [day.toString()]
+                            },
+                            ...dayEvents.map(event => ({
+                                tagName: 'div',
+                                attributes: { class: 'calendar-event' },
+                                children: [event.title]
+                            }))
+                        ]
+                    });
+                }
+
+                const userAccounts = user.accounts || {};
+                const accountEmails = Object.keys(userAccounts);
+
+                const folders = [
+                    { 
+                        name: "All Calendars", 
+                        icon: "fas fa-calendar-alt", 
+                        count: events.length,
+                        subfolders: accountEmails.map(email => ({
+                            email: email,
+                            name: email,
+                            count: events.filter(e => e.sourceAccount === email).length
+                        }))
+                    },
+                    { name: "Birthdays", icon: "fas fa-birthday-cake", count: events.filter(e => e.category === 'Birthday').length },
+                    { name: "Holidays", icon: "fas fa-tree", count: events.filter(e => e.category === 'Holiday').length },
+                ];
+
+                const folderItems = [];
+                folders.forEach(folder => {
+                    folderItems.push(createFolderItem(folder));
+                    
+                    if (folder.subfolders && folder.subfolders.length > 0) {
+                        folder.subfolders.forEach(subfolder => {
+                            folderItems.push(createFolderItem(subfolder, true, subfolder.email));
+                        });
+                    }
+                });
+
+                const calendarWrapper = document.querySelector('.calendar-wrapper');
+                
+                if (calendarWrapper) {
+                    const sidebar = document.querySelector('.calendar-sidebar');
+                    render({
+                        tagName: 'div',
+                        attributes: { class: 'calendar-sidebar' },
+                        children: folderItems
+                    }, {replaceEl: sidebar});
+
+                    const currentCalendarGrid = calendarWrapper.querySelector('.calendar-grid');
+                    const currentCalendarHeader = calendarWrapper.querySelector('.plugin-header');
+                    
+                    render({
+                        tagName: 'div',
+                        attributes: { class: 'plugin-header' },
+                        children: [
+                           {
+                                tagName: 'h1',
+                                children: [`${monthName} ${year}`]
+                           },
+                           {
+                                tagName: 'input',
+                                attributes: { 
+                                    type: 'date',
+                                    class: 'date-picker',
+                                    value: currentDate.toISOString().split('T')[0],
+                                    onchange: 'updateDate(this)'
+                                }
+                            }
+                        ]
+                    }, { replaceEl: currentCalendarHeader });
+
+                    render({
+                        tagName: 'div',
+                        attributes: { class: 'calendar-grid' },
+                        children: [...dayHeaders, ...days]
+                    }, { replaceEl: currentCalendarGrid });
+                    return;
+                }
+
+                render({
+                    tagName: 'div',
+                    attributes: { class: 'plugin-wrapper' },
+                    children: [
+                        {
+                            tagName: 'div',
+                            attributes: { class: 'plugin-header' },
+                            children: [
+                                {
+                                    tagName: 'h1',
+                                    children: [`${monthName} ${year}`]
+                                },
+                                {
+                                    tagName: 'input',
+                                    attributes: { 
+                                        type: 'date',
+                                        class: 'date-picker',
+                                        value: currentDate.toISOString().split('T')[0],
+                                        onchange: 'updateDate(this)'
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            tagName: 'div',
+                            attributes: { class: 'plugin-container' },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'plugin-sidebar' },
+                                    children: folderItems
+                                },
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'plugin-main' },
+                                    children: [
+                                        {
+                                            tagName: 'div',
+                                            attributes: { class: 'calendar-grid' },
+                                            children: [...dayHeaders, ...days]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }, { replaceEl: document.getElementById('app') });
+            };
+
+            window.updateDate = (element) => {
+                const [year, month, day] = element.value.split('-').map(Number);
+                currentDate = new Date(year, month - 1, day);
+                renderCalendar();
+            };
+
+            window.filterEventsByAccount = (accountEmail) => {
+                currentFilterType = 'account';
+                currentFilterValue = accountEmail;
+                renderCalendar();
+            };
+
+            window.filterEventsByFolder = (folderName) => {
+                currentFilterType = 'folder';
+                currentFilterValue = folderName;
+                renderCalendar();
+            };
+
+            renderCalendar();
+        </script>
+    </body>
+</html>

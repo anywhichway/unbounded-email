@@ -1,0 +1,12 @@
+.plugin-icon[title="Chat"] {
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.plugin-icon[title="Chat"]:hover {
+    background-color: #e0e0e0;
+}

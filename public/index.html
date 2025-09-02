@@ -1,0 +1,70 @@
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Unbounded Email</title>
+        <script src="./assets/js/lightview-core.js"></script>
+        <script src="./assets/js/lightview-dom.js"></script>
+        <script src="./assets/js/lightview-href.js"></script>
+        <script src="./assets/js/lightview-iframe.js"></script>
+        <link rel="stylesheet" href="./index.css">
+    </head>
+    <body>
+        <script type="module" id="init">
+            const {render,state} = Lightview;
+            const master = await fetch("./assets/data/index.json").then(r => r.json());
+            master.user.addContact = function(contact) {
+                this.push(contact);
+            }
+            master.user.removeContact = function(contactId) {
+                
+            }
+            await render({
+                tagName: "div",
+                attributes: {
+                    id: "app",
+                },
+                children: [
+                    {
+                        tagName: "div",
+                        attributes: {
+                            id: "header",
+                        }
+                    },
+                    {
+                        tagName: "div",
+                        attributes: {
+                            id: "content"
+                        },
+                        children: [
+                            {
+                                tagName: "div",
+                                attributes: {
+                                    id: "plugins"
+                                },
+                                children: master.ui.plugins
+                            },
+                            {
+                                tagName: "iframe",
+                                attributes: {
+                                    id: "pluginView",
+                                    src: "./plugins/index.html",
+                                    onchange(event) {
+                                         lvIFrame.export(master.user);
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        tagName: "div",
+                        attributes: {
+                            id: "footer"
+                        }
+                    }
+                ]
+            },{replaceEl:document.getElementById("init"),state:master});
+            await lvIFrame.export(master.user);
+        </script>
+    </body>
+</html>
