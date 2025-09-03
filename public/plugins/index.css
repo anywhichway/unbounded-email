@@ -64,7 +64,7 @@ html, body {
 .folder-item {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 4px 12px;
     cursor: pointer;
     border-radius: 4px;
     margin-bottom: 2px;
@@ -76,27 +76,53 @@ html, body {
 }
 
 .folder-item.active {
-    background-color: #e0e0e0;
+    background-color: #eaf6ff;
+    color: #007bff;
+    font-weight: 600;
+}
+
+.folder-item.active i {
+    color: #007bff;
 }
 
 .folder-item.subfolder {
-    padding-left: 32px;
-    font-size: 0.9em;
+    padding-left: 28px;
+    font-size: 14px;
 }
 
 .folder-item i {
-    margin-right: 8px;
-    width: 16px;
+    margin-right: 12px;
+    width: 20px;
     text-align: center;
+    color: #6c757d;
 }
 
 .folder-count {
     margin-left: auto;
     font-size: 12px;
-    color: #666;
-    background-color: #e8e8e8;
+    color: #6c757d;
+    background-color: #e9ecef;
     padding: 2px 8px;
     border-radius: 10px;
+    font-weight: 500;
+}
+
+.folder-item.active .folder-count {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.sidebar-header {
+    padding: 0 12px 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-section {
+    margin-bottom: 20px;
 }
 
 /* Responsive design */

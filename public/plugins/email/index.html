@@ -99,90 +99,129 @@
             // Get user accounts from user structure based on JSON format
             const userAccounts = user.accounts || {};
             const accountEmails = Object.keys(userAccounts);
+            window.accountEmails = accountEmails;
+
+            // Get unique tags
+            const tags = [...new Set(emails.flatMap(e => e.tags || []))];
             
             // State for filtering
             let filteredEmails = emails;
             let currentAccount = null;
+            let currentFolder = null;
+            let currentCategory = null;
+            let selectedFolderId = null;
             
-            // Create folder structure with subfolders
+            // Set initial filter to all Inbox
+            filteredEmails = emails.filter(e => e.folder === 'Inbox');
+            currentFolder = 'Inbox';
+            currentAccount = null;
+            window.selectedFolderId = 'folder-Inbox';
+            
+            // Create folder structure
             const folders = [
                 { 
                     name: "Inbox", 
                     icon: "fas fa-inbox", 
-                    count: emails.filter(e => !e.sent && !e.draft && !e.spam && !e.trash).length,
-                    subfolders: accountEmails.map(email => ({
-                        email: email,
-                        name: email,
-                        count: emails.filter(e => e.accountType === email && !e.sent && !e.draft && !e.spam && !e.trash).length
-                    }))
+                    count: emails.filter(e => e.folder === 'Inbox').length,
+                    subfolders: accountEmails.map(accountEmail => {
+                        const account = userAccounts[accountEmail];
+                        const standardFolders = ['Inbox', 'Drafts', 'Scheduled', 'Snoozed', 'Sent', 'Spam', 'Trash'];
+                        const customFolders = account.folders.filter(f => !standardFolders.includes(f));
+                        
+                        return {
+                            name: accountEmail,
+                            count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === 'Inbox').length,
+                            accountEmail: accountEmail,
+                            subfolders: customFolders.map(folderName => ({
+                                name: folderName,
+                                count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName).length,
+                                accountEmail: accountEmail
+                            }))
+                        };
+                    })
                 },
-                { name: "Starred", icon: "fas fa-star", count: emails.filter(e => e.starred).length },
+                { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.folder === 'Drafts').length },
+                { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.folder === 'Scheduled').length },
                 { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
-                { name: "Important", icon: "fas fa-exclamation-circle", count: emails.filter(e => e.important).length },
-                { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.sent).length },
-                { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.draft).length },
-                { name: "Categories", icon: "fas fa-tags", count: 0 },
-                { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.scheduled).length },
-                { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.spam).length },
-                { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.trash).length }
+                { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.folder === 'Sent').length },
+                { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.folder === 'Spam').length },
+                { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.folder === 'Trash').length },
             ];
+            
+            // Add global categories
+            folders.push({
+                name: "Categories", 
+                icon: "fas fa-tags", 
+                count: emails.filter(e => e.tags && e.tags.length > 0).length,
+                subfolders: tags.map(tag => ({
+                    name: tag,
+                    count: emails.filter(e => e.tags && e.tags.includes(tag)).length
+                }))
+            });
+
+            window.filterEmailsByAccountFolder = (accountEmail, folderName) => {
+                filteredEmails = emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName);
+                currentAccount = accountEmail;
+                currentFolder = folderName;
+                currentCategory = null;
+                window.selectedFolderId = `account-${accountEmail.replace('@', '-at-')}-${folderName}`;
+                renderEmailList();
+            }
+
+            window.filterEmailsByCategory = (tagName) => {
+                // Filter by category, respecting selected account
+                if (currentAccount) {
+                    filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(tagName));
+                } else {
+                    filteredEmails = emails.filter(e => e.tags && e.tags.includes(tagName));
+                }
+                currentFolder = null;
+                currentCategory = tagName;
+                window.selectedFolderId = `category-${tagName}`;
+                renderEmailList();
+            }
 
             window.filterEmailsByAccount = (accountEmail) => {
-                if (accountEmail) {
-                    // Filter for a specific account's inbox
-                    filteredEmails = emails.filter(e => e.sourceAccount === accountEmail && !e.sent && !e.draft && !e.spam && !e.trash);
-                } else {
-                    // Filter for all accounts' inbox
-                    filteredEmails = emails.filter(e => !e.sent && !e.draft && !e.spam && !e.trash);
-                }
+                // Filter by account's Inbox
+                filteredEmails = emails.filter(e => e.sourceAccount === accountEmail && e.folder === 'Inbox');
                 currentAccount = accountEmail;
+                currentFolder = 'Inbox';
+                currentCategory = null;
+                window.selectedFolderId = `account-${accountEmail.replace('@', '-at-')}`;
+                renderEmailList();
+            }
+
+            window.filterEmailsBySnoozed = () => {
+                // Filter by snoozed emails, respecting selected account
+                if (currentAccount) {
+                    filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.snoozed);
+                } else {
+                    filteredEmails = emails.filter(e => e.snoozed);
+                }
+                currentFolder = 'Snoozed';
+                currentCategory = null;
+                window.selectedFolderId = `folder-Snoozed`;
                 renderEmailList();
             }
 
             window.filterEmailsByFolder = (folderName) => {
-                currentAccount = null;
-                const lowerCaseFolderName = folderName.toLowerCase();
-                
-                switch (lowerCaseFolderName) {
-                    case 'starred':
-                        filteredEmails = emails.filter(e => e.starred);
-                        break;
-                    case 'snoozed':
-                        filteredEmails = emails.filter(e => e.snoozed);
-                        break;
-                    case 'important':
-                        filteredEmails = emails.filter(e => e.important);
-                        break;
-                    case 'sent':
-                        filteredEmails = emails.filter(e => e.sent);
-                        break;
-                    case 'drafts':
-                        filteredEmails = emails.filter(e => e.draft);
-                        break;
-                    case 'scheduled':
-                        filteredEmails = emails.filter(e => e.scheduled);
-                        break;
-                    case 'spam':
-                        filteredEmails = emails.filter(e => e.spam);
-                        break;
-                    case 'trash':
-                        filteredEmails = emails.filter(e => e.trash);
-                        break;
-                    default:
-                        filteredEmails = emails.filter(e => !e.sent && !e.draft && !e.spam && !e.trash);
-                        break;
+                // Filter by top-level folder, respecting selected account
+                if (currentAccount) {
+                    filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.folder === folderName);
+                } else {
+                    filteredEmails = emails.filter(e => e.folder === folderName);
                 }
+                currentFolder = folderName;
+                currentCategory = null;
+                window.selectedFolderId = `folder-${folderName}`;
                 renderEmailList();
             }
-
-            
-            // Function to render email list based on current filter
             const renderEmailList = () => {
                 const filteredEmailItems = filteredEmails.length > 0 
                     ? filteredEmails.map(email => ({
                         "tagName": "div",
                         "attributes": {
-                            "class": `email-item ${email.unread ? 'unread' : ''}`,
+                            "class": `email-item ${email.unread ? 'unread' : ''} ${email.important ? 'important' : ''} ${email.scheduled ? 'scheduled' : ''} ${email.snoozed ? 'snoozed' : ''}`,
                             "data-email-id": email.id
                         },
                         "children": [
@@ -239,7 +278,21 @@
                                                     "class": "email-account"
                                                 },
                                                 "children": [email.accountType]
-                                            }
+                                            },
+                                            ...(email.scheduled ? [{
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-status scheduled"
+                                                },
+                                                "children": [`Scheduled: ${new Date(email.scheduled).toLocaleString()}`]
+                                            }] : []),
+                                            ...(email.snoozed ? [{
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-status snoozed"
+                                                },
+                                                "children": [`Snoozed until: ${new Date(email.snoozed).toLocaleString()}`]
+                                            }] : [])
                                         ]
                                     }
                                 ]
@@ -260,6 +313,81 @@
                     emailCountEl.textContent = `${filteredEmails.length} email${filteredEmails.length !== 1 ? 's' : ''}`;
                 }
                 
+                // Update header title
+                const headerTitleEl = document.querySelector('.plugin-header-left h1');
+                if (headerTitleEl) {
+                    let title;
+                    if (currentCategory) {
+                        title = `Categories - ${currentCategory}`;
+                    } else if (currentAccount) {
+                        title = `${currentAccount} - ${currentFolder}`;
+                    } else if (currentFolder) {
+                        title = currentFolder;
+                    } else {
+                        title = 'All Emails';
+                    }
+                    headerTitleEl.textContent = title;
+                }
+                
+                // Update visual selection
+                document.querySelectorAll('.folder-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                if (window.selectedFolderId) {
+                    const selectedItem = document.getElementById(window.selectedFolderId);
+                    if (selectedItem) {
+                        selectedItem.classList.add('active');
+                    }
+                }
+                
+                // Also keep account selection active if we're filtering within an account
+                if (currentAccount) {
+                    const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
+                    if (accountItem) {
+                        accountItem.classList.add('active');
+                    }
+                }
+                
+                // Update folder counts based on current account selection
+                document.querySelectorAll('.folder-item').forEach(item => {
+                    const countEl = item.querySelector('.folder-count');
+                    if (countEl) {
+                        const accountEmail = item.getAttribute('data-account');
+                        const folderName = item.getAttribute('data-folder') || item.id.replace('folder-', '');
+                        const categoryName = item.getAttribute('data-category');
+                        
+                        let count = 0;
+                        if (folderName && accountEmail && accountEmail !== "") {
+                            // Custom folder under account
+                            count = emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName).length;
+                        } else if (folderName && folderName !== "") {
+                            // Top-level folder
+                            if (folderName === 'Snoozed') {
+                                if (currentAccount) {
+                                    count = emails.filter(e => e.sourceAccount === currentAccount && e.snoozed).length;
+                                } else {
+                                    count = emails.filter(e => e.snoozed).length;
+                                }
+                            } else if (currentAccount) {
+                                count = emails.filter(e => e.sourceAccount === currentAccount && e.folder === folderName).length;
+                            } else {
+                                count = emails.filter(e => e.folder === folderName).length;
+                            }
+                        } else if (accountEmail && accountEmail !== "") {
+                            // Account folder (Inbox)
+                            count = emails.filter(e => e.sourceAccount === accountEmail && e.folder === 'Inbox').length;
+                        } else if (categoryName) {
+                            // Category
+                            if (currentAccount) {
+                                count = emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                            } else {
+                                count = emails.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                            }
+                        }
+                        countEl.textContent = count.toString();
+                    }
+                });
+                
                 // Update email list
                 const emailListEl = document.querySelector('.email-list');
                 if (emailListEl) {
@@ -278,10 +406,20 @@
             folders.forEach(folder => {
                 folderItems.push(createFolderItem(folder));
                 
-                // Add subfolders for Inbox
-                if (folder.name === "Inbox" && folder.subfolders && folder.subfolders.length > 0) {
+                if (folder.subfolders && folder.subfolders.length > 0) {
                     folder.subfolders.forEach(subfolder => {
-                        folderItems.push(createFolderItem(subfolder, true, subfolder.email));
+                        if (folder.name === "Inbox" && subfolder.subfolders && subfolder.subfolders.length > 0) {
+                            // Handle account subfolders with their own subfolders
+                            folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail));
+                            subfolder.subfolders.forEach(subSubfolder => {
+                                folderItems.push(createFolderItem(subSubfolder, true, subSubfolder.accountEmail, subSubfolder.name));
+                            });
+                        } else if (folder.name === "Categories") {
+                            folderItems.push(createFolderItem(subfolder, true, null, null, subfolder.name));
+                        } else {
+                            // Regular subfolders
+                            folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail, subfolder.name));
+                        }
                     });
                 }
             });
@@ -297,11 +435,11 @@
                         children: [
                             {
                                 tagName: 'div',
-                                attributes: { class: 'email-header-left' },
+                                attributes: { class: 'plugin-header-left' },
                                 children: [
                                     {
                                         tagName: 'h1',
-                                        children: ['Inbox']
+                                        children: [currentFolder || 'All Emails']
                                     },
                                     {
                                         tagName: 'span',
@@ -319,7 +457,20 @@
                             {
                                 tagName: 'div',
                                 attributes: { class: 'plugin-sidebar' },
-                                children: folderItems
+                                children: [
+                                    {
+                                        tagName: 'div',
+                                        attributes: { class: 'sidebar-section' },
+                                        children: [
+                                            {
+                                                tagName: 'div',
+                                                attributes: { class: 'sidebar-header' },
+                                                children: ['Folders']
+                                            },
+                                            ...folderItems
+                                        ]
+                                    }
+                                ]
                             },
                             {
                                 tagName: 'div',

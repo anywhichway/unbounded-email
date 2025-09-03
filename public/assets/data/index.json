@@ -5,6 +5,7 @@
             "syblackwell@anywhichway.com": {
                 "type": "Google",
                 "name": "G",
+                "folders": ["Inbox", "Drafts", "Sent", "Spam", "Trash", "Work", "Personal"],
                 "emails": [
                     {
                         "to": ["syblackwell@anywhichway.com"],
@@ -12,7 +13,9 @@
                         "date": "Mon Sep 01 2025 09:00:00 GMT-0700 (Pacific Daylight Time)",
                         "subject": "Your Weekly Newsletter",
                         "textBody": "Here is your weekly newsletter.",
-                        "htmlBody": "<p>Here is your weekly newsletter.</p>"
+                        "htmlBody": "<p>Here is your weekly newsletter.</p>",
+                        "folder": "Inbox",
+                        "tags": ["#promotions"]
                     },
                     {
                         "to": ["syblackwell@anywhichway.com"],
@@ -20,7 +23,10 @@
                         "date": "Mon Sep 01 2025 09:30:00 GMT-0700 (Pacific Daylight Time)",
                         "subject": "Your support ticket has been updated",
                         "textBody": "Your support ticket #12345 has been updated.",
-                        "htmlBody": "<p>Your support ticket #12345 has been updated.</p>"
+                        "htmlBody": "<p>Your support ticket #12345 has been updated.</p>",
+                        "folder": "Inbox",
+                        "important": true,
+                        "tags": ["#updates"]
                     },
                     {
                         "to": ["friend@example.com"],
@@ -29,7 +35,18 @@
                         "subject": "Catching up",
                         "textBody": "Hey, how have you been? We should catch up soon.",
                         "htmlBody": "<p>Hey, how have you been? We should catch up soon.</p>",
-                        "sent": true
+                        "folder": "Sent",
+                        "tags": ["#social"]
+                    },
+                    {
+                        "to": ["syblackwell@anywhichway.com"],
+                        "from": "forum@example.com",
+                        "date": "Mon Sep 01 2025 11:00:00 GMT-0700 (Pacific Daylight Time)",
+                        "subject": "New post in 'General Discussion'",
+                        "textBody": "A new post has been made in the 'General Discussion' forum.",
+                        "htmlBody": "<p>A new post has been made in the 'General Discussion' forum.</p>",
+                        "folder": "Work",
+                        "tags": ["#forums"]
                     }
                 ],
                 "contacts": [
@@ -74,6 +91,7 @@
             "syblackwell@hotmail.com": {
                 "type": "Microsost",
                 "name": "M",
+                                "folders": ["Inbox", "Drafts", "Scheduled", "Snoozed", "Sent", "Spam", "Trash", "Personal"],
                 "emails": [
                     {
                         "to": ["julianaperez_8@msn.com"],
@@ -84,18 +102,20 @@
                         ],
                         "subject": "Trip",
                         "textBody": "Have a good trip!\n-----BEGIN ENCRYPTED DATA-----\nI love you!\n-----END ENCRYPTED DATA-----",
-                        "htmlBody": "<p>Have a good trip</p><pre class='encrypted'><p>I love you!</p></pre>"
+                        "htmlBody": "<p>Have a good trip</p><pre class='encrypted'><p>I love you!</p></pre>",
+                        "folder": "Sent"
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
                         "from": "julianaperez_8@msn.com",
-                        "date": "Sun Aug 31 2025 08:008:07 GMT-0700 (Pacific Daylight Time)",
+                        "date": "Sun Aug 31 2025 08:08:07 GMT-0700 (Pacific Daylight Time)",
                         "received": [
 
                         ],
                         "subject": "Re: Trip",
                         "textBody": "Thanks!\n-----BEGIN ENCRYPTED DATA-----\nI love you too!\n-----END ENCRYPTED DATA-----",
-                        "htmlBody": "<p>Have a good trip</p><pre class='encrypted'><p>I love you too!</p></pre>"
+                        "htmlBody": "<p>Have a good trip</p><pre class='encrypted'><p>I love you too!</p></pre>",
+                        "folder": "Inbox"
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
@@ -104,7 +124,8 @@
                         "subject": "Starred Email",
                         "textBody": "This is a starred email.",
                         "htmlBody": "<p>This is a starred email.</p>",
-                        "starred": true
+                        "folder": "Inbox",
+                        "tags": ["#social", "#starred"]
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
@@ -113,7 +134,9 @@
                         "subject": "Snoozed Email",
                         "textBody": "This is a snoozed email.",
                         "htmlBody": "<p>This is a snoozed email.</p>",
-                        "snoozed": true
+                        "folder": "Inbox",
+                        "snoozed": "2025-09-05T09:00:00Z",
+                        "tags": ["#updates"]
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
@@ -122,7 +145,9 @@
                         "subject": "Important Email",
                         "textBody": "This is an important email.",
                         "htmlBody": "<p>This is an important email.</p>",
-                        "important": true
+                        "folder": "Inbox",
+                        "important": true,
+                        "tags": ["#promotions"]
                     },
                     {
                         "to": ["sent@example.com"],
@@ -131,7 +156,7 @@
                         "subject": "Sent Email",
                         "textBody": "This is a sent email.",
                         "htmlBody": "<p>This is a sent email.</p>",
-                        "sent": true
+                        "folder": "Sent"
                     },
                     {
                         "to": [""],
@@ -140,7 +165,7 @@
                         "subject": "Draft Email",
                         "textBody": "This is a draft email.",
                         "htmlBody": "<p>This is a draft email.</p>",
-                        "draft": true
+                        "folder": "Drafts"
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
@@ -149,7 +174,7 @@
                         "subject": "Spam Email",
                         "textBody": "This is a spam email.",
                         "htmlBody": "<p>This is a spam email.</p>",
-                        "spam": true
+                        "folder": "Spam"
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
@@ -158,7 +183,7 @@
                         "subject": "Trash Email",
                         "textBody": "This is a trash email.",
                         "htmlBody": "<p>This is a trash email.</p>",
-                        "trash": true
+                        "folder": "Trash"
                     },
                     {
                         "to": ["scheduled@example.com"],
@@ -167,7 +192,8 @@
                         "subject": "Scheduled Email",
                         "textBody": "This is a scheduled email.",
                         "htmlBody": "<p>This is a scheduled email.</p>",
-                        "scheduled": true
+                        "folder": "Scheduled",
+                        "scheduled": "2025-09-10T14:00:00Z"
                     }
                 ],
                 "contacts": [

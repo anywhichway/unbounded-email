@@ -11,9 +11,9 @@ async function getContactsFromAccounts(userData) {
                 // Add contacts from the account's contacts array
                 if (account.contacts && Array.isArray(account.contacts)) {
                     account.contacts.forEach(contact => {
-                        contact.screenName ||= contact.email,
-                        contact.accountType = account.type,
-                        contact.sourceAccount = accountEmail
+                        contact.screenName ||= contact.emai;
+                        contact.accountType = account.type;
+                        contact.sourceAccount = accountEmail;
                         contacts.push(contact);
                     });
                 }

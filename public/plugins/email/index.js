@@ -29,11 +29,31 @@ async function getEmailsFromAccounts(userData) {
 }
 
 
-const createFolderItem = (folder, isSubfolder = false, accountEmail = null) => {
+const createFolderItem = (folder, isSubfolder = false, accountEmail = null, folderName = null, categoryName = null) => {
+    // Generate unique ID for this folder item
+    let folderId = '';
+    if (accountEmail && folderName) {
+        folderId = `account-${accountEmail.replace('@', '-at-')}-${folderName}`;
+    } else if (categoryName) {
+        folderId = `category-${categoryName}`;
+    } else if (accountEmail) {
+        folderId = `account-${accountEmail.replace('@', '-at-')}`;
+    } else {
+        if (window.accountEmails && window.accountEmails.includes(folder.name)) {
+            folderId = `account-${folder.name.replace('@', '-at-')}`;
+        } else {
+            folderId = `folder-${folder.name}`;
+        }
+    }
+    
     const folderItem = {
         "tagName": "div",
         "attributes": {
-            "class": isSubfolder ? "folder-item subfolder" : "folder-item"
+            "class": isSubfolder ? "folder-item subfolder" : "folder-item",
+            "id": folderId,
+            "data-account": accountEmail || "",
+            "data-folder": folderName || "",
+            "data-category": categoryName || ""
         },
         "children": [
             {
@@ -51,15 +71,33 @@ const createFolderItem = (folder, isSubfolder = false, accountEmail = null) => {
                 "attributes": {
                     "class": "folder-count"
                 },
-                "children": [folder.count > 0 ? folder.count.toString() : ""]
+                "children": [folder.count !== undefined ? folder.count.toString() : "0"]
             }
         ]
     };
 
-    if (accountEmail) {
+    // Add selected class if this is the currently selected folder
+    if (window.selectedFolderId === folderId) {
+        folderItem.attributes.class += " active";
+    }
+
+    if (accountEmail && folderName) {
+        folderItem.attributes.onclick = `filterEmailsByAccountFolder('${accountEmail}', '${folderName}')`;
+    } else if (categoryName) {
+        folderItem.attributes.onclick = `filterEmailsByCategory('${categoryName}')`;
+    } else if (accountEmail) {
         folderItem.attributes.onclick = `filterEmailsByAccount('${accountEmail}')`;
     } else {
-        folderItem.attributes.onclick = `filterEmailsByFolder('${folder.name}')`;
+        // top-level
+        if (folder.name === 'Categories') {
+            // no onclick
+        } else if (folder.name === 'Snoozed') {
+            folderItem.attributes.onclick = `filterEmailsBySnoozed()`;
+        } else if (window.accountEmails && window.accountEmails.includes(folder.name)) {
+            folderItem.attributes.onclick = `filterEmailsByAccount('${folder.name}')`;
+        } else {
+            folderItem.attributes.onclick = `filterEmailsByFolder('${folder.name}')`;
+        }
     }
     
     return folderItem;
