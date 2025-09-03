@@ -39,7 +39,7 @@ async function getEventsFromAccounts(userData, displayYear) {
                                     title: `${contact.name || contact.screenName}'s Birthday`,
                                     date: birthDateForDisplayYear.toISOString().split('T')[0],
                                     recurring: 'yearly',
-                                    category: 'Birthday',
+                                    tags: ['#birthday'],
                                     sourceAccount: accountEmail,
                                     accountType: account.type
                                 });
@@ -54,7 +54,7 @@ async function getEventsFromAccounts(userData, displayYear) {
     return events.sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-const createFolderItem = (folder, isSubfolder = false, accountEmail = null) => {
+const createFolderItem = (folder, isSubfolder = false, accountEmail = null, tagName = null) => {
     const folderItem = {
         "tagName": "div",
         "attributes": {
@@ -81,7 +81,26 @@ const createFolderItem = (folder, isSubfolder = false, accountEmail = null) => {
         ]
     };
 
-    if (accountEmail) {
+    // Add data attributes for dynamic count updates
+    folderItem.attributes['data-account'] = accountEmail || '';
+    folderItem.attributes['data-folder'] = (folder.name && !tagName) ? folder.name : '';
+    folderItem.attributes['data-category'] = tagName || '';
+
+    // Add ID for visual selection
+    if (isSubfolder && accountEmail) {
+        // Account subfolder
+        folderItem.attributes.id = `account-${accountEmail.replace('@', '-at-')}`;
+    } else if (folder.name && !tagName) {
+        // Top-level folder
+        folderItem.attributes.id = `folder-${folder.name}`;
+    } else if (tagName) {
+        // Category
+        folderItem.attributes.id = `category-${tagName}`;
+    }
+
+    if (tagName) {
+        folderItem.attributes.onclick = `filterEventsByTag('${folder.originalTag || tagName}')`;
+    } else if (accountEmail) {
         folderItem.attributes.onclick = `filterEventsByAccount('${accountEmail}')`;
     } else {
         folderItem.attributes.onclick = `filterEventsByFolder('${folder.name}')`;

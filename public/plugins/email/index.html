@@ -15,94 +15,15 @@
          <script type="module" id="init">
             const {render} = Lightview;
             const {local} = lvIFrame;
-            const user = await local(lvIFrame.import("./"));
+            const {user, ui} = await local(lvIFrame.import("./"));
             
             const emails = await getEmailsFromAccounts(user);
-            
-            // Create email items
-            const emailItems = emails.length > 0 
-                ? emails.map(email => ({
-                    "tagName": "div",
-                    "attributes": {
-                        "class": `email-item ${email.unread ? 'unread' : ''}`,
-                        "data-email-id": email.id
-                    },
-                    "children": [
-                        {
-                            "tagName": "div",
-                            "attributes": {
-                                "class": "email-avatar"
-                            },
-                            "children": [(email.from || 'Unknown').charAt(0).toUpperCase()]
-                        },
-                        {
-                            "tagName": "div",
-                            "attributes": {
-                                "class": "email-info"
-                            },
-                            "children": [
-                                {
-                                    "tagName": "div",
-                                    "attributes": {
-                                        "class": "email-sender"
-                                    },
-                                    "children": [email.from]
-                                },
-                                {
-                                    "tagName": "div",
-                                    "attributes": {
-                                        "class": "email-subject"
-                                    },
-                                    "children": [email.subject]
-                                },
-                                {
-                                    "tagName": "div",
-                                    "attributes": {
-                                        "class": "email-preview"
-                                    },
-                                    "children": [email.preview]
-                                },
-                                {
-                                    "tagName": "div",
-                                    "attributes": {
-                                        "class": "email-meta"
-                                    },
-                                    "children": [
-                                        {
-                                            "tagName": "div",
-                                            "attributes": {
-                                                "class": "email-date"
-                                            },
-                                            "children": [new Date(email.date).toLocaleDateString()]
-                                        },
-                                        {
-                                            "tagName": "div",
-                                            "attributes": {
-                                                "class": "email-account"
-                                            },
-                                            "children": [email.accountType]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }))
-                : [{
-                    "tagName": "div",
-                    "attributes": {
-                        "class": "no-emails"
-                    },
-                    "children": ["No emails found"]
-                }];
+            const tagIcons = ui.tagIcons || {};
             
             // Get user accounts from user structure based on JSON format
             const userAccounts = user.accounts || {};
             const accountEmails = Object.keys(userAccounts);
             window.accountEmails = accountEmails;
-
-            // Get unique tags
-            const tags = [...new Set(emails.flatMap(e => e.tags || []))];
             
             // State for filtering
             let filteredEmails = emails;
@@ -116,48 +37,6 @@
             currentFolder = 'Inbox';
             currentAccount = null;
             window.selectedFolderId = 'folder-Inbox';
-            
-            // Create folder structure
-            const folders = [
-                { 
-                    name: "Inbox", 
-                    icon: "fas fa-inbox", 
-                    count: emails.filter(e => e.folder === 'Inbox').length,
-                    subfolders: accountEmails.map(accountEmail => {
-                        const account = userAccounts[accountEmail];
-                        const standardFolders = ['Inbox', 'Drafts', 'Scheduled', 'Snoozed', 'Sent', 'Spam', 'Trash'];
-                        const customFolders = account.folders.filter(f => !standardFolders.includes(f));
-                        
-                        return {
-                            name: accountEmail,
-                            count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === 'Inbox').length,
-                            accountEmail: accountEmail,
-                            subfolders: customFolders.map(folderName => ({
-                                name: folderName,
-                                count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName).length,
-                                accountEmail: accountEmail
-                            }))
-                        };
-                    })
-                },
-                { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.folder === 'Drafts').length },
-                { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.folder === 'Scheduled').length },
-                { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
-                { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.folder === 'Sent').length },
-                { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.folder === 'Spam').length },
-                { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.folder === 'Trash').length },
-            ];
-            
-            // Add global categories
-            folders.push({
-                name: "Categories", 
-                icon: "fas fa-tags", 
-                count: emails.filter(e => e.tags && e.tags.length > 0).length,
-                subfolders: tags.map(tag => ({
-                    name: tag,
-                    count: emails.filter(e => e.tags && e.tags.includes(tag)).length
-                }))
-            });
 
             window.filterEmailsByAccountFolder = (accountEmail, folderName) => {
                 filteredEmails = emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName);
@@ -204,9 +83,26 @@
                 renderEmailList();
             }
 
+            window.filterEmailsByStarred = () => {
+                // Filter by starred emails, respecting selected account
+                if (currentAccount) {
+                    filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.starred);
+                } else {
+                    filteredEmails = emails.filter(e => e.starred);
+                }
+                currentFolder = 'Starred';
+                currentCategory = null;
+                window.selectedFolderId = `folder-Starred`;
+                renderEmailList();
+            }
+
             window.filterEmailsByFolder = (folderName) => {
                 // Filter by top-level folder, respecting selected account
-                if (currentAccount) {
+                if (folderName === 'Inbox') {
+                    // When clicking on top-level Inbox, show all Inbox emails and reset account filter
+                    filteredEmails = emails.filter(e => e.folder === 'Inbox');
+                    currentAccount = null;
+                } else if (currentAccount) {
                     filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.folder === folderName);
                 } else {
                     filteredEmails = emails.filter(e => e.folder === folderName);
@@ -216,15 +112,446 @@
                 window.selectedFolderId = `folder-${folderName}`;
                 renderEmailList();
             }
+
+            window.updateSnoozeDate = (emailId, newDateTime) => {
+                // Find the email and update its snoozed property
+                const email = emails.find(e => e.id === emailId);
+                if (email) {
+                    if (newDateTime) {
+                        email.snoozed = new Date(newDateTime).toISOString();
+                    } else {
+                        // If no date selected, remove snooze
+                        delete email.snoozed;
+                    }
+                    // Re-filter the emails based on current view
+                    if (currentCategory) {
+                        if (currentAccount) {
+                            filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(currentCategory));
+                        } else {
+                            filteredEmails = emails.filter(e => e.tags && e.tags.includes(currentCategory));
+                        }
+                    } else if (currentFolder) {
+                        if (currentFolder === 'Snoozed') {
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.snoozed);
+                            } else {
+                                filteredEmails = emails.filter(e => e.snoozed);
+                            }
+                        } else if (currentFolder === 'Starred') {
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.starred);
+                            } else {
+                                filteredEmails = emails.filter(e => e.starred);
+                            }
+                        } else if (currentFolder === 'Scheduled') {
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.scheduled);
+                            } else {
+                                filteredEmails = emails.filter(e => e.scheduled);
+                            }
+                        } else {
+                            // for other folders like Inbox, Drafts, Sent, Spam, Trash
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.folder === currentFolder);
+                            } else {
+                                filteredEmails = emails.filter(e => e.folder === currentFolder);
+                            }
+                        }
+                    } else {
+                        filteredEmails = emails;
+                    }
+                    // Re-render the email list to reflect changes
+                    renderEmailList();
+                }
+            }
+
+            window.updateScheduleDate = (emailId, newDateTime) => {
+                // Find the email and update its scheduled property
+                const email = emails.find(e => e.id === emailId);
+                if (email) {
+                    if (newDateTime) {
+                        email.scheduled = new Date(newDateTime).toISOString();
+                    } else {
+                        // If no date selected, remove schedule
+                        delete email.scheduled;
+                    }
+                    // Re-filter the emails based on current view
+                    if (currentCategory) {
+                        if (currentAccount) {
+                            filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(currentCategory));
+                        } else {
+                            filteredEmails = emails.filter(e => e.tags && e.tags.includes(currentCategory));
+                        }
+                    } else if (currentFolder) {
+                        if (currentFolder === 'Snoozed') {
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.snoozed);
+                            } else {
+                                filteredEmails = emails.filter(e => e.snoozed);
+                            }
+                        } else if (currentFolder === 'Starred') {
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.starred);
+                            } else {
+                                filteredEmails = emails.filter(e => e.starred);
+                            }
+                        } else if (currentFolder === 'Scheduled') {
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.scheduled);
+                            } else {
+                                filteredEmails = emails.filter(e => e.scheduled);
+                            }
+                        } else {
+                            // for other folders like Inbox, Drafts, Sent, Spam, Trash
+                            if (currentAccount) {
+                                filteredEmails = emails.filter(e => e.sourceAccount === currentAccount && e.folder === currentFolder);
+                            } else {
+                                filteredEmails = emails.filter(e => e.folder === currentFolder);
+                            }
+                        }
+                    } else {
+                        filteredEmails = emails;
+                    }
+                    // Re-render the email list to reflect changes
+                    renderEmailList();
+                }
+            }
+
+            window.replyToEmail = (emailId) => {
+                const email = emails.find(e => e.id === emailId);
+                if (email) {
+                    alert(`Reply to: ${email.subject}`);
+                    // TODO: Implement reply functionality
+                }
+            }
+
+            window.forwardEmail = (emailId) => {
+                const email = emails.find(e => e.id === emailId);
+                if (email) {
+                    alert(`Forward: ${email.subject}`);
+                    // TODO: Implement forward functionality
+                }
+            }
+
+            window.snoozeEmail = (emailId) => {
+                // Show snooze picker modal
+                showSnoozeModal(emailId);
+            }
+
+            window.showSnoozeModal = (emailId) => {
+                const modal = document.getElementById('snooze-modal');
+                if (!modal) return; // Modal not found
+                
+                const picker = document.getElementById('snooze-datetime-picker');
+                const confirmBtn = document.getElementById('snooze-confirm-btn');
+                
+                // Set default to 1 hour from now
+                const defaultTime = new Date();
+                defaultTime.setHours(defaultTime.getHours() + 1);
+                picker.value = defaultTime.toISOString().slice(0, 16);
+                
+                // Store emailId for later use
+                window.currentSnoozeEmailId = emailId;
+                
+                // Show modal
+                modal.style.display = 'flex';
+                
+                // Focus on picker
+                setTimeout(() => {
+                    picker.focus();
+                    // Add enter key handler for picker
+                    const handleEnter = (e) => {
+                        if (e.key === 'Enter') {
+                            confirmSnooze();
+                        }
+                    };
+                    picker.addEventListener('keydown', handleEnter);
+                    window.currentEnterHandler = handleEnter;
+                }, 100);
+                
+                // Add event listeners for closing modal
+                const closeModal = (e) => {
+                    if (e.target === modal) {
+                        hideSnoozeModal();
+                    }
+                };
+                
+                const handleEscape = (e) => {
+                    if (e.key === 'Escape') {
+                        hideSnoozeModal();
+                    }
+                };
+                
+                modal.addEventListener('click', closeModal);
+                document.addEventListener('keydown', handleEscape);
+                
+                // Store for cleanup
+                window.currentModalClose = closeModal;
+                window.currentEscapeHandler = handleEscape;
+            }
+
+            window.confirmSnooze = () => {
+                const picker = document.getElementById('snooze-datetime-picker');
+                const selectedTime = picker.value;
+                
+                if (selectedTime && window.currentSnoozeEmailId) {
+                    const email = emails.find(e => e.id === window.currentSnoozeEmailId);
+                    if (email) {
+                        email.snoozed = new Date(selectedTime).toISOString();
+                        renderEmailList();
+                    }
+                }
+                
+                hideSnoozeModal();
+            }
+
+            window.hideSnoozeModal = () => {
+                const modal = document.getElementById('snooze-modal');
+                if (!modal) return;
+                
+                modal.style.display = 'none';
+                window.currentSnoozeEmailId = null;
+                
+                // Remove event listeners
+                if (window.currentModalClose) {
+                    modal.removeEventListener('click', window.currentModalClose);
+                }
+                if (window.currentEscapeHandler) {
+                    document.removeEventListener('keydown', window.currentEscapeHandler);
+                }
+                if (window.currentEnterHandler) {
+                    const picker = document.getElementById('snooze-datetime-picker');
+                    if (picker) {
+                        picker.removeEventListener('keydown', window.currentEnterHandler);
+                    }
+                }
+            }
+
+            window.tagEmail = (emailId) => {
+                const email = emails.find(e => e.id === emailId);
+                if (email) {
+                    const tag = prompt('Enter tag (e.g., #important, #work):', email.tags ? email.tags[0] : '');
+                    if (tag) {
+                        if (!email.tags) email.tags = [];
+                        if (!email.tags.includes(tag)) {
+                            email.tags.push(tag);
+                        }
+                        renderEmailList();
+                    }
+                }
+            }
+
+            window.markAsSpam = (emailId) => {
+                const email = emails.find(e => e.id === emailId);
+                if (email) {
+                    email.folder = 'Spam';
+                    renderEmailList();
+                }
+            }
+
+            window.deleteEmail = (emailId) => {
+                const emailIndex = emails.findIndex(e => e.id === emailId);
+                if (emailIndex !== -1) {
+                    if (confirm('Are you sure you want to delete this email?')) {
+                        emails[emailIndex].folder = 'Trash';
+                        renderEmailList();
+                    }
+                }
+            }
             const renderEmailList = () => {
+                // Get unique tags
+                const tags = [...new Set(emails.flatMap(e => e.tags || []))];
+
+                // Create folder structure
+                const folders = [
+                    { 
+                        name: "Inbox", 
+                        icon: "fas fa-inbox", 
+                        count: emails.filter(e => e.folder === 'Inbox').length,
+                        subfolders: accountEmails.map(accountEmail => {
+                            const account = userAccounts[accountEmail];
+                            const standardFolders = ['Inbox', 'Drafts', 'Scheduled', 'Snoozed', 'Sent', 'Spam', 'Trash'];
+                            const customFolders = account.folders.filter(f => !standardFolders.includes(f));
+                            
+                            return {
+                                name: accountEmail,
+                                count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === 'Inbox').length,
+                                accountEmail: accountEmail,
+                                subfolders: customFolders.map(folderName => ({
+                                    name: folderName,
+                                    count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName).length,
+                                    accountEmail: accountEmail
+                                }))
+                            };
+                        })
+                    },
+                    { name: "Starred", icon: "fas fa-star", count: emails.filter(e => e.starred).length },
+                    { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.folder === 'Drafts').length },
+                    { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.folder === 'Scheduled').length },
+                    { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
+                    { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.folder === 'Sent').length },
+                    { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.folder === 'Spam').length },
+                    { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.folder === 'Trash').length },
+                ];
+                
+                // Add global categories
+                folders.push({
+                    name: "Categories", 
+                    icon: "fas fa-tags", 
+                    count: emails.filter(e => e.tags && e.tags.length > 0).length,
+                    subfolders: tags.map(tag => ({
+                        name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
+                        originalTag: tag,
+                        icon: tagIcons[tag] || tagIcons.default,
+                        count: emails.filter(e => e.tags && e.tags.includes(tag)).length
+                    }))
+                });
+
+                const folderItems = [];
+                folders.forEach(folder => {
+                    folderItems.push(createFolderItem(folder, false, null, null, null, currentAccount));
+                    
+                    if (folder.subfolders && folder.subfolders.length > 0) {
+                        folder.subfolders.forEach(subfolder => {
+                            if (folder.name === "Inbox" && subfolder.subfolders && subfolder.subfolders.length > 0) {
+                                // Handle account subfolders with their own subfolders
+                                folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail, null, null, currentAccount));
+                                subfolder.subfolders.forEach(subSubfolder => {
+                                    folderItems.push(createFolderItem(subSubfolder, true, subSubfolder.accountEmail, subSubfolder.name, null, currentAccount));
+                                });
+                            } else if (folder.name === "Categories") {
+                                folderItems.push(createFolderItem(subfolder, true, null, null, subfolder.name, currentAccount));
+                            } else {
+                                // Regular subfolders
+                                folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail, subfolder.name, null, currentAccount));
+                            }
+                        });
+                    }
+                });
+
+                const sidebarEl = document.querySelector('.plugin-sidebar');
+                if(sidebarEl) {
+                    render({
+                        tagName: 'div',
+                        attributes: { class: 'plugin-sidebar' },
+                        children: [
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'sidebar-section' },
+                                children: [
+                                    {
+                                        tagName: 'div',
+                                        attributes: { class: 'sidebar-header' },
+                                        children: ['Folders']
+                                    },
+                                    ...folderItems
+                                ]
+                            }
+                        ]
+                    }, {replaceEl: sidebarEl});
+                }
+
+
                 const filteredEmailItems = filteredEmails.length > 0 
                     ? filteredEmails.map(email => ({
                         "tagName": "div",
                         "attributes": {
-                            "class": `email-item ${email.unread ? 'unread' : ''} ${email.important ? 'important' : ''} ${email.scheduled ? 'scheduled' : ''} ${email.snoozed ? 'snoozed' : ''}`,
+                            "class": `email-item ${email.unread ? 'unread' : ''} ${email.important ? 'important' : ''} ${email.starred ? 'starred' : ''} ${email.scheduled ? 'scheduled' : ''} ${email.snoozed ? 'snoozed' : ''}`,
                             "data-email-id": email.id
                         },
                         "children": [
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "email-actions"
+                                },
+                                "children": [
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Reply",
+                                            "onclick": `event.stopPropagation(); replyToEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-reply"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Forward",
+                                            "onclick": `event.stopPropagation(); forwardEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-share"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Snooze",
+                                            "onclick": `event.stopPropagation(); snoozeEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-clock"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Tag",
+                                            "onclick": `event.stopPropagation(); tagEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-tag"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Mark as Spam",
+                                            "onclick": `event.stopPropagation(); markAsSpam('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-exclamation-triangle"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Delete",
+                                            "onclick": `event.stopPropagation(); deleteEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-trash"
+                                            }
+                                        }]
+                                    }
+                                ]
+                            },
                             {
                                 "tagName": "div",
                                 "attributes": {
@@ -284,14 +611,38 @@
                                                 "attributes": {
                                                     "class": "email-status scheduled"
                                                 },
-                                                "children": [`Scheduled: ${new Date(email.scheduled).toLocaleString()}`]
+                                                "children": [
+                                                    "Scheduled:",
+                                                    {
+                                                        "tagName": "input",
+                                                        "attributes": {
+                                                            "type": "datetime-local",
+                                                            "class": "schedule-picker",
+                                                            "value": new Date(email.scheduled).toISOString().slice(0, 16),
+                                                            "data-email-id": email.id,
+                                                            "onchange": `updateScheduleDate('${email.id}', this.value)`
+                                                        }
+                                                    }
+                                                ]
                                             }] : []),
                                             ...(email.snoozed ? [{
                                                 "tagName": "div",
                                                 "attributes": {
                                                     "class": "email-status snoozed"
                                                 },
-                                                "children": [`Snoozed until: ${new Date(email.snoozed).toLocaleString()}`]
+                                                "children": [
+                                                    "Snoozed until:",
+                                                    {
+                                                        "tagName": "input",
+                                                        "attributes": {
+                                                            "type": "datetime-local",
+                                                            "class": "snooze-picker",
+                                                            "value": new Date(email.snoozed).toISOString().slice(0, 16),
+                                                            "data-email-id": email.id,
+                                                            "onchange": `updateSnoozeDate('${email.id}', this.value)`
+                                                        }
+                                                    }
+                                                ]
                                             }] : [])
                                         ]
                                     }
@@ -401,92 +752,401 @@
                 }
             };
 
-        
-            const folderItems = [];
-            folders.forEach(folder => {
-                folderItems.push(createFolderItem(folder));
-                
-                if (folder.subfolders && folder.subfolders.length > 0) {
-                    folder.subfolders.forEach(subfolder => {
-                        if (folder.name === "Inbox" && subfolder.subfolders && subfolder.subfolders.length > 0) {
-                            // Handle account subfolders with their own subfolders
-                            folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail));
-                            subfolder.subfolders.forEach(subSubfolder => {
-                                folderItems.push(createFolderItem(subSubfolder, true, subSubfolder.accountEmail, subSubfolder.name));
-                            });
-                        } else if (folder.name === "Categories") {
-                            folderItems.push(createFolderItem(subfolder, true, null, null, subfolder.name));
-                        } else {
-                            // Regular subfolders
-                            folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail, subfolder.name));
-                        }
-                    });
-                }
-            });
-
             // Initial render
-            render({
-                tagName: 'div',
-                attributes: { class: 'plugin-wrapper' },
-                children: [
-                    {
-                        tagName: 'div',
-                        attributes: { class: 'plugin-header' },
-                        children: [
+            const initialRender = () => {
+                const tags = [...new Set(emails.flatMap(e => e.tags || []))];
+
+                // Create folder structure
+                const folders = [
+                    { 
+                        name: "Inbox", 
+                        icon: "fas fa-inbox", 
+                        count: emails.filter(e => e.folder === 'Inbox').length,
+                        subfolders: accountEmails.map(accountEmail => {
+                            const account = userAccounts[accountEmail];
+                            const standardFolders = ['Inbox', 'Drafts', 'Scheduled', 'Snoozed', 'Sent', 'Spam', 'Trash'];
+                            const customFolders = account.folders.filter(f => !standardFolders.includes(f));
+                            
+                            return {
+                                name: accountEmail,
+                                count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === 'Inbox').length,
+                                accountEmail: accountEmail,
+                                subfolders: customFolders.map(folderName => ({
+                                    name: folderName,
+                                    count: emails.filter(e => e.sourceAccount === accountEmail && e.folder === folderName).length,
+                                    accountEmail: accountEmail
+                                }))
+                            };
+                        })
+                    },
+                    { name: "Starred", icon: "fas fa-star", count: emails.filter(e => e.starred).length },
+                    { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.folder === 'Drafts').length },
+                    { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.folder === 'Scheduled').length },
+                    { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
+                    { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.folder === 'Sent').length },
+                    { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.folder === 'Spam').length },
+                    { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.folder === 'Trash').length },
+                ];
+                
+                // Add global categories
+                folders.push({
+                    name: "Categories", 
+                    icon: "fas fa-tags", 
+                    count: emails.filter(e => e.tags && e.tags.length > 0).length,
+                    subfolders: tags.map(tag => ({
+                        name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
+                        originalTag: tag,
+                        icon: tagIcons[tag] || tagIcons.default,
+                        count: emails.filter(e => e.tags && e.tags.includes(tag)).length
+                    }))
+                });
+
+                const folderItems = [];
+                folders.forEach(folder => {
+                    folderItems.push(createFolderItem(folder, false, null, null, null, currentAccount));
+                    
+                    if (folder.subfolders && folder.subfolders.length > 0) {
+                        folder.subfolders.forEach(subfolder => {
+                            if (folder.name === "Inbox" && subfolder.subfolders && subfolder.subfolders.length > 0) {
+                                // Handle account subfolders with their own subfolders
+                                folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail, null, null, currentAccount));
+                                subfolder.subfolders.forEach(subSubfolder => {
+                                    folderItems.push(createFolderItem(subSubfolder, true, subSubfolder.accountEmail, subSubfolder.name, null, currentAccount));
+                                });
+                            } else if (folder.name === "Categories") {
+                                folderItems.push(createFolderItem(subfolder, true, null, null, subfolder.name, currentAccount));
+                            } else {
+                                // Regular subfolders
+                                folderItems.push(createFolderItem(subfolder, true, subfolder.accountEmail, subfolder.name, null, currentAccount));
+                            }
+                        });
+                    }
+                });
+
+                const filteredEmailItems = filteredEmails.length > 0 
+                    ? filteredEmails.map(email => ({
+                        "tagName": "div",
+                        "attributes": {
+                            "class": `email-item ${email.unread ? 'unread' : ''} ${email.important ? 'important' : ''} ${email.starred ? 'starred' : ''} ${email.scheduled ? 'scheduled' : ''} ${email.snoozed ? 'snoozed' : ''}`,
+                            "data-email-id": email.id
+                        },
+                        "children": [
                             {
-                                tagName: 'div',
-                                attributes: { class: 'plugin-header-left' },
-                                children: [
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "email-actions"
+                                },
+                                "children": [
                                     {
-                                        tagName: 'h1',
-                                        children: [currentFolder || 'All Emails']
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Reply",
+                                            "onclick": `event.stopPropagation(); replyToEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-reply"
+                                            }
+                                        }]
                                     },
                                     {
-                                        tagName: 'span',
-                                        attributes: { class: 'plugin-count' },
-                                        children: [`${filteredEmails.length} email${filteredEmails.length !== 1 ? 's' : ''}`]
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        tagName: 'div',
-                        attributes: { class: 'plugin-container' },
-                        children: [
-                            {
-                                tagName: 'div',
-                                attributes: { class: 'plugin-sidebar' },
-                                children: [
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Forward",
+                                            "onclick": `event.stopPropagation(); forwardEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-share"
+                                            }
+                                        }]
+                                    },
                                     {
-                                        tagName: 'div',
-                                        attributes: { class: 'sidebar-section' },
-                                        children: [
-                                            {
-                                                tagName: 'div',
-                                                attributes: { class: 'sidebar-header' },
-                                                children: ['Folders']
-                                            },
-                                            ...folderItems
-                                        ]
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Snooze",
+                                            "onclick": `event.stopPropagation(); snoozeEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-clock"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Tag",
+                                            "onclick": `event.stopPropagation(); tagEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-tag"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Mark as Spam",
+                                            "onclick": `event.stopPropagation(); markAsSpam('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-exclamation-triangle"
+                                            }
+                                        }]
+                                    },
+                                    {
+                                        "tagName": "button",
+                                        "attributes": {
+                                            "class": "email-action-btn",
+                                            "title": "Delete",
+                                            "onclick": `event.stopPropagation(); deleteEmail('${email.id}')`
+                                        },
+                                        "children": [{
+                                            "tagName": "i",
+                                            "attributes": {
+                                                "class": "fas fa-trash"
+                                            }
+                                        }]
                                     }
                                 ]
                             },
                             {
-                                tagName: 'div',
-                                attributes: { class: 'plugin-main' },
-                                children: [
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "email-avatar"
+                                },
+                                "children": [(email.from || 'Unknown').charAt(0).toUpperCase()]
+                            },
+                            {
+                                "tagName": "div",
+                                "attributes": {
+                                    "class": "email-info"
+                                },
+                                "children": [
                                     {
-                                        tagName: 'div',
-                                        attributes: { class: 'email-list' },
-                                        children: emailItems
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-sender"
+                                        },
+                                        "children": [email.from]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-subject"
+                                        },
+                                        "children": [email.subject]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-preview"
+                                        },
+                                        "children": [email.preview]
+                                    },
+                                    {
+                                        "tagName": "div",
+                                        "attributes": {
+                                            "class": "email-meta"
+                                        },
+                                        "children": [
+                                            {
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-date"
+                                                },
+                                                "children": [new Date(email.date).toLocaleDateString()]
+                                            },
+                                            {
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-account"
+                                                },
+                                                "children": [email.accountType]
+                                            },
+                                            ...(email.scheduled ? [{
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-status scheduled"
+                                                },
+                                                "children": [
+                                                    "Scheduled:",
+                                                    {
+                                                        "tagName": "input",
+                                                        "attributes": {
+                                                            "type": "datetime-local",
+                                                            "class": "schedule-picker",
+                                                            "value": new Date(email.scheduled).toISOString().slice(0, 16),
+                                                            "data-email-id": email.id,
+                                                            "onchange": `updateScheduleDate('${email.id}', this.value)`
+                                                        }
+                                                    }
+                                                ]
+                                            }] : []),
+                                            ...(email.snoozed ? [{
+                                                "tagName": "div",
+                                                "attributes": {
+                                                    "class": "email-status snoozed"
+                                                },
+                                                "children": [
+                                                    "Snoozed until:",
+                                                    {
+                                                        "tagName": "input",
+                                                        "attributes": {
+                                                            "type": "datetime-local",
+                                                            "class": "snooze-picker",
+                                                            "value": new Date(email.snoozed).toISOString().slice(0, 16),
+                                                            "data-email-id": email.id,
+                                                            "onchange": `updateSnoozeDate('${email.id}', this.value)`
+                                                        }
+                                                    }
+                                                ]
+                                            }] : [])
+                                        ]
                                     }
                                 ]
                             }
                         ]
-                    }
-                ]
-            }, {replaceEl: document.getElementById("app")});
+                    }))
+                    : [{
+                        "tagName": "div",
+                        "attributes": {
+                            "class": "no-emails"
+                        },
+                        "children": ["No emails found"]
+                    }];
+
+                render({
+                    tagName: 'div',
+                    attributes: { class: 'plugin-wrapper' },
+                    children: [
+                        {
+                            tagName: 'div',
+                            attributes: { class: 'plugin-header' },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'plugin-header-left' },
+                                    children: [
+                                        {
+                                            tagName: 'h1',
+                                            children: [currentFolder || 'All Emails']
+                                        },
+                                        {
+                                            tagName: 'span',
+                                            attributes: { class: 'plugin-count email-count' },
+                                            children: [`${filteredEmails.length} email${filteredEmails.length !== 1 ? 's' : ''}`]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            tagName: 'div',
+                            attributes: { class: 'plugin-container' },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'plugin-sidebar' },
+                                    children: [
+                                        {
+                                            tagName: 'div',
+                                            attributes: { class: 'sidebar-section' },
+                                            children: [
+                                                {
+                                                    tagName: 'div',
+                                                    attributes: { class: 'sidebar-header' },
+                                                    children: ['Folders']
+                                                },
+                                                ...folderItems
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'plugin-main' },
+                                    children: [
+                                        {
+                                            tagName: 'div',
+                                            attributes: { class: 'email-list' },
+                                            children: filteredEmailItems
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            tagName: 'div',
+                            attributes: { 
+                                id: 'snooze-modal',
+                                class: 'modal-overlay'
+                            },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'modal-content' },
+                                    children: [
+                                        {
+                                            tagName: 'h3',
+                                            children: ['Snooze Email']
+                                        },
+                                        {
+                                            tagName: 'p',
+                                            children: ['Select the date and time to wake up this email:']
+                                        },
+                                        {
+                                            tagName: 'input',
+                                            attributes: {
+                                                type: 'datetime-local',
+                                                id: 'snooze-datetime-picker',
+                                                class: 'datetime-picker'
+                                            }
+                                        },
+                                        {
+                                            tagName: 'div',
+                                            attributes: { class: 'modal-buttons' },
+                                            children: [
+                                                {
+                                                    tagName: 'button',
+                                                    attributes: {
+                                                        class: 'modal-btn cancel-btn',
+                                                        onclick: 'hideSnoozeModal()'
+                                                    },
+                                                    children: ['Cancel']
+                                                },
+                                                {
+                                                    tagName: 'button',
+                                                    attributes: {
+                                                        id: 'snooze-confirm-btn',
+                                                        class: 'modal-btn confirm-btn',
+                                                        onclick: 'confirmSnooze()'
+                                                    },
+                                                    children: ['Snooze']
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }, {replaceEl: document.getElementById("app")});
+            }
+            initialRender();
         </script>
     </body>
 </html>

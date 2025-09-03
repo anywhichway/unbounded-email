@@ -53,18 +53,19 @@
                     {
                         "screenName": "Alice",
                         "email": "alice@example.com",
-                        "group": "Friends",
+                        "starred": true,
+                        "tags": ["#friends"],
                         "frequentlyContacted": true
                     },
                     {
                         "screenName": "Bob",
                         "email": "bob@example.com",
-                        "group": "Work"
+                        "tags": ["#work"]
                     },
                     {
                         "screenName": "Mom",
                         "email": "mom@example.com",
-                        "group": "Family"
+                        "tags": ["#family"]
                     }
                 ],
                 "calendar": [
@@ -73,18 +74,21 @@
                         "date": "2025-09-03",
                         "startTime": "10:00",
                         "endTime": "11:00",
-                        "description": "Weekly team sync"
+                        "description": "Weekly team sync",
+                        "starred": true,
+                        "tags": ["#work"]
                     },
                     {
                         "title": "Lunch with Bob",
                         "date": "2025-09-05",
                         "startTime": "12:30",
-                        "endTime": "13:30"
+                        "endTime": "13:30",
+                        "tags": ["#work", "#social"]
                     },
                     {
                         "title": "Labor Day",
                         "date": "2025-09-01",
-                        "category": "Holiday"
+                        "tags": ["#holiday"]
                     }
                 ]
             },
@@ -125,7 +129,8 @@
                         "textBody": "This is a starred email.",
                         "htmlBody": "<p>This is a starred email.</p>",
                         "folder": "Inbox",
-                        "tags": ["#social", "#starred"]
+                        "starred": true,
+                        "tags": ["#social"]
                     },
                     {
                         "to": ["syblackwell@hotmail.com"],
@@ -200,25 +205,25 @@
                     {
                         "screenName": "Juliana",
                         "email": "julianaperez_8@msn.com",
-                        "group": "Family",
+                        "tags": ["#family"],
                         "birthdate": "1960-06-13",
                         "frequentlyContacted": true
                     },
                     {
                         "screenName": "Charlie",
                         "email": "charlie@example.com",
-                        "group": "Friends"
+                        "tags": ["#friends"]
                     },
                     {
                         "screenName": "David",
                         "email": "david@example.com",
-                        "group": "Work",
+                        "tags": ["#work"],
                         "frequentlyContacted": true
                     },
                     {
                         "screenName": "Dad",
                         "email": "dad@example.com",
-                        "group": "Family",
+                        "tags": ["#family"],
                         "frequentlyContacted": true
                     }
                 ],
@@ -228,18 +233,33 @@
                         "date": "2025-09-10",
                         "startTime": "14:00",
                         "endTime": "15:00",
-                        "description": "Annual check-up"
+                        "description": "Annual check-up",
+                        "tags": ["#personal"]
                     },
                     {
                         "title": "Juliana's Birthday Party",
                         "date": "2025-09-15",
-                        "startTime": "18:00"
+                        "startTime": "18:00",
+                        "tags": ["#family", "#social"]
                     }
                 ]
             }
         }
     },
     "ui": {
+        "tagIcons": {
+            "#family": "fas fa-home",
+            "#friends": "fas fa-user-friends",
+            "#work": "fas fa-briefcase",
+            "#personal": "fas fa-user",
+            "#holiday": "fas fa-tree",
+            "#birthday": "fas fa-birthday-cake",
+            "#promotions": "fas fa-bullhorn",
+            "#forums": "fas fa-comments",
+            "#updates": "fas fa-bell",
+            "#social": "fas fa-share-alt",
+            "default": "fas fa-hashtag"
+        },
         "plugins": [
             {
                 "tagName": "div",

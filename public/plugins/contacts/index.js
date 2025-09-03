@@ -23,7 +23,7 @@ async function getContactsFromAccounts(userData) {
         return contacts;
     }
 
-const createFolderItem = (folder, isSubfolder = false, accountEmail = null) => {
+const createFolderItem = (folder, isSubfolder = false, accountEmail = null, tagName = null) => {
     const folderItem = {
         "tagName": "div",
         "attributes": {
@@ -48,11 +48,29 @@ const createFolderItem = (folder, isSubfolder = false, accountEmail = null) => {
                 "children": [folder.count > 0 ? folder.count.toString() : ""]
             }
         ]
-    };        if (accountEmail) {
-            folderItem.attributes.onclick = `filterContactsByAccount('${accountEmail}')`;
-        } else {
-            folderItem.attributes.onclick = `filterContactsByFolder('${folder.name}')`;
-        }
-        
-        return folderItem;
+    };
+
+    // Add data attributes for dynamic count updates
+    folderItem.attributes['data-account'] = accountEmail || '';
+    folderItem.attributes['data-folder'] = (folder.name && !tagName) ? folder.name : '';
+    folderItem.attributes['data-category'] = tagName || '';
+
+    // Add ID for visual selection
+    if (isSubfolder && accountEmail) {
+        folderItem.attributes.id = `account-${accountEmail.replace('@', '-at-')}`;
+    } else if (folder.name && !tagName) {
+        folderItem.attributes.id = `folder-${folder.name}`;
+    } else if (tagName) {
+        folderItem.attributes.id = `category-${tagName}`;
     }
+
+    if (tagName) {
+        folderItem.attributes.onclick = `filterContactsByTag('${folder.originalTag || tagName}')`;
+    } else if (accountEmail) {
+        folderItem.attributes.onclick = `filterContactsByAccount('${accountEmail}')`;
+    } else {
+        folderItem.attributes.onclick = `filterContactsByFolder('${folder.name}')`;
+    }
+    
+    return folderItem;
+}

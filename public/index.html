@@ -50,7 +50,7 @@
                                     id: "pluginView",
                                     src: "./plugins/index.html",
                                     onchange(event) {
-                                         lvIFrame.export(master.user);
+                                         lvIFrame.export(master);
                                     }
                                 }
                             }
@@ -64,7 +64,7 @@
                     }
                 ]
             },{replaceEl:document.getElementById("init"),state:master});
-            await lvIFrame.export(master.user);
+            await lvIFrame.export(master);
         </script>
     </body>
 </html>

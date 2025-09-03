@@ -29,7 +29,7 @@ async function getEmailsFromAccounts(userData) {
 }
 
 
-const createFolderItem = (folder, isSubfolder = false, accountEmail = null, folderName = null, categoryName = null) => {
+const createFolderItem = (folder, isSubfolder = false, accountEmail = null, folderName = null, categoryName = null, currentAccount = null) => {
     // Generate unique ID for this folder item
     let folderId = '';
     if (accountEmail && folderName) {
@@ -76,21 +76,23 @@ const createFolderItem = (folder, isSubfolder = false, accountEmail = null, fold
         ]
     };
 
-    // Add selected class if this is the currently selected folder
-    if (window.selectedFolderId === folderId) {
+    // Add selected class if this is the currently selected folder or account
+    if (window.selectedFolderId === folderId || (accountEmail && currentAccount === accountEmail)) {
         folderItem.attributes.class += " active";
     }
 
     if (accountEmail && folderName) {
         folderItem.attributes.onclick = `filterEmailsByAccountFolder('${accountEmail}', '${folderName}')`;
     } else if (categoryName) {
-        folderItem.attributes.onclick = `filterEmailsByCategory('${categoryName}')`;
+        folderItem.attributes.onclick = `filterEmailsByCategory('${folder.originalTag || categoryName}')`;
     } else if (accountEmail) {
         folderItem.attributes.onclick = `filterEmailsByAccount('${accountEmail}')`;
     } else {
         // top-level
         if (folder.name === 'Categories') {
             // no onclick
+        } else if (folder.name === 'Starred') {
+            folderItem.attributes.onclick = `filterEmailsByStarred()`;
         } else if (folder.name === 'Snoozed') {
             folderItem.attributes.onclick = `filterEmailsBySnoozed()`;
         } else if (window.accountEmails && window.accountEmails.includes(folder.name)) {

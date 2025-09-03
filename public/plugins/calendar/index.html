@@ -15,13 +15,42 @@
          <script type="module" id="init">
             const {render} = Lightview;
             const {local} = lvIFrame;
-            const user = await local(lvIFrame.import("./"));
+            const {user, ui} = await local(lvIFrame.import("./"));
 
             let events = [];
             let filteredEvents = [];
             let currentFilterType = 'folder';
             let currentFilterValue = 'All Calendars';
             let currentDate = new Date();
+            let currentTag = null;
+            let currentAccount = null;
+            window.selectedFolderId = 'folder-All Calendars';
+
+            const getHeaderTitle = () => {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const monthName = currentDate.toLocaleString('default', { month: 'long' });
+                
+                let title = `${monthName} ${year}`;
+                
+                if (currentTag) {
+                    if (currentAccount) {
+                        title += ` - ${currentAccount} - Categories - ${currentTag}`;
+                    } else {
+                        title += ` - Categories - ${currentTag}`;
+                    }
+                } else if (currentAccount) {
+                    if (currentFilterType === 'starred') {
+                        title += ` - ${currentAccount} - Starred`;
+                    } else {
+                        title += ` - ${currentAccount}`;
+                    }
+                } else if (currentFilterType === 'starred') {
+                    title += ` - Starred`;
+                }
+                
+                return title;
+            };
 
             const applyFilters = () => {
                 if (currentFilterType === 'account') {
@@ -30,21 +59,24 @@
                     } else {
                         filteredEvents = events;
                     }
-                } else if (currentFilterType === 'folder') {
-                    const lowerCaseFolderName = currentFilterValue.toLowerCase();
-                    switch (lowerCaseFolderName) {
-                        case 'birthdays':
-                            filteredEvents = events.filter(e => e.category === 'Birthday');
-                            break;
-                        case 'holidays':
-                            filteredEvents = events.filter(e => e.category === 'Holiday');
-                            break;
-                        default:
-                            filteredEvents = events;
-                            break;
+                } else if (currentFilterType === 'tag') {
+                    if (currentAccount) {
+                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(currentTag));
+                    } else {
+                        filteredEvents = events.filter(e => e.tags && e.tags.includes(currentTag));
+                    }
+                } else if (currentFilterType === 'starred') {
+                    if (currentAccount) {
+                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount && e.starred);
+                    } else {
+                        filteredEvents = events.filter(e => e.starred);
                     }
                 } else {
-                    filteredEvents = events;
+                    if (currentAccount) {
+                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount);
+                    } else {
+                        filteredEvents = events;
+                    }
                 }
             };
 
@@ -97,8 +129,14 @@
                             },
                             ...dayEvents.map(event => ({
                                 tagName: 'div',
-                                attributes: { class: 'calendar-event' },
-                                children: [event.title]
+                                attributes: { class: `calendar-event ${event.starred ? 'starred' : ''}` },
+                                children: [
+                                    event.starred ? {
+                                        tagName: 'i',
+                                        attributes: { class: 'fas fa-star event-star' }
+                                    } : null,
+                                    event.title
+                                ].filter(Boolean)
                             }))
                         ]
                     });
@@ -106,6 +144,8 @@
 
                 const userAccounts = user.accounts || {};
                 const accountEmails = Object.keys(userAccounts);
+                const tags = [...new Set(events.flatMap(e => e.tags || []))];
+                const tagIcons = ui.tagIcons || {};
 
                 const folders = [
                     { 
@@ -118,8 +158,21 @@
                             count: events.filter(e => e.sourceAccount === email).length
                         }))
                     },
-                    { name: "Birthdays", icon: "fas fa-birthday-cake", count: events.filter(e => e.category === 'Birthday').length },
-                    { name: "Holidays", icon: "fas fa-tree", count: events.filter(e => e.category === 'Holiday').length },
+                    { 
+                        name: "Starred", 
+                        icon: "fas fa-star",
+                        count: events.filter(e => e.starred).length
+                    },
+                    { 
+                        name: "Categories", 
+                        icon: "fas fa-tags",
+                        subfolders: tags.map(tag => ({
+                            name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
+                            originalTag: tag,
+                            icon: tagIcons[tag] || tagIcons.default,
+                            count: events.filter(e => e.tags && e.tags.includes(tag)).length
+                        }))
+                    }
                 ];
 
                 const folderItems = [];
@@ -128,10 +181,72 @@
                     
                     if (folder.subfolders && folder.subfolders.length > 0) {
                         folder.subfolders.forEach(subfolder => {
-                            folderItems.push(createFolderItem(subfolder, true, subfolder.email));
+                            if (folder.name === "All Calendars") {
+                                folderItems.push(createFolderItem(subfolder, true, subfolder.email));
+                            } else {
+                                folderItems.push(createFolderItem(subfolder, true, null, subfolder.originalTag));
+                            }
                         });
                     }
                 });
+
+                // Update folder counts based on current account selection
+                document.querySelectorAll('.folder-item').forEach(item => {
+                    const countEl = item.querySelector('.folder-count');
+                    if (countEl) {
+                        const accountEmail = item.getAttribute('data-account');
+                        const folderName = item.getAttribute('data-folder');
+                        const categoryName = item.getAttribute('data-category');
+                        
+                        let count = 0;
+                        if (accountEmail && accountEmail !== "") {
+                            // Account events
+                            count = events.filter(e => e.sourceAccount === accountEmail).length;
+                        } else if (folderName && folderName !== "") {
+                            // Top-level folder
+                            if (folderName === 'Starred') {
+                                if (currentAccount) {
+                                    count = events.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                } else {
+                                    count = events.filter(e => e.starred).length;
+                                }
+                            } else if (folderName === 'All Calendars') {
+                                if (currentAccount) {
+                                    count = events.filter(e => e.sourceAccount === currentAccount).length;
+                                } else {
+                                    count = events.length;
+                                }
+                            }
+                        } else if (categoryName) {
+                            // Category
+                            if (currentAccount) {
+                                count = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                            } else {
+                                count = events.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                            }
+                        }
+                        countEl.textContent = count.toString();
+                    }
+                });
+
+                // Update visual selection
+                document.querySelectorAll('.folder-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                if (window.selectedFolderId) {
+                    const selectedItem = document.getElementById(window.selectedFolderId);
+                    if (selectedItem) {
+                        selectedItem.classList.add('active');
+                    }
+                }
+                
+                // Also keep account selection active if we're filtering within an account
+                if (currentAccount) {
+                    const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
+                    if (accountItem) {
+                        accountItem.classList.add('active');
+                    }
+                }
 
                 const calendarWrapper = document.querySelector('.calendar-wrapper');
                 
@@ -152,7 +267,7 @@
                         children: [
                            {
                                 tagName: 'h1',
-                                children: [`${monthName} ${year}`]
+                                children: [getHeaderTitle()]
                            },
                            {
                                 tagName: 'input',
@@ -171,6 +286,68 @@
                         attributes: { class: 'calendar-grid' },
                         children: [...dayHeaders, ...days]
                     }, { replaceEl: currentCalendarGrid });
+
+                    // Apply visual selection and count updates for existing calendar
+                    setTimeout(() => {
+                        // Update folder counts based on current account selection
+                        document.querySelectorAll('.folder-item').forEach(item => {
+                            const countEl = item.querySelector('.folder-count');
+                            if (countEl) {
+                                const accountEmail = item.getAttribute('data-account');
+                                const folderName = item.getAttribute('data-folder');
+                                const categoryName = item.getAttribute('data-category');
+                                
+                                let count = 0;
+                                if (accountEmail && accountEmail !== "") {
+                                    // Account events
+                                    count = events.filter(e => e.sourceAccount === accountEmail).length;
+                                } else if (folderName && folderName !== "") {
+                                    // Top-level folder
+                                    if (folderName === 'Starred') {
+                                        if (currentAccount) {
+                                            count = events.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                        } else {
+                                            count = events.filter(e => e.starred).length;
+                                        }
+                                    } else if (folderName === 'All Calendars') {
+                                        if (currentAccount) {
+                                            count = events.filter(e => e.sourceAccount === currentAccount).length;
+                                        } else {
+                                            count = events.length;
+                                        }
+                                    }
+                                } else if (categoryName) {
+                                    // Category
+                                    if (currentAccount) {
+                                        count = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                                    } else {
+                                        count = events.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                                    }
+                                }
+                                countEl.textContent = count.toString();
+                            }
+                        });
+
+                        // Update visual selection
+                        document.querySelectorAll('.folder-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        if (window.selectedFolderId) {
+                            const selectedItem = document.getElementById(window.selectedFolderId);
+                            if (selectedItem) {
+                                selectedItem.classList.add('active');
+                            }
+                        }
+                        
+                        // Also keep account selection active if we're filtering within an account
+                        if (currentAccount) {
+                            const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
+                            if (accountItem) {
+                                accountItem.classList.add('active');
+                            }
+                        }
+                    }, 0);
+                    
                     return;
                 }
 
@@ -184,7 +361,7 @@
                             children: [
                                 {
                                     tagName: 'h1',
-                                    children: [`${monthName} ${year}`]
+                                    children: [getHeaderTitle()]
                                 },
                                 {
                                     tagName: 'input',
@@ -221,6 +398,67 @@
                         }
                     ]
                 }, { replaceEl: document.getElementById('app') });
+                
+                // Apply initial visual selection and count updates
+                setTimeout(() => {
+                    // Update folder counts based on current account selection
+                    document.querySelectorAll('.folder-item').forEach(item => {
+                        const countEl = item.querySelector('.folder-count');
+                        if (countEl) {
+                            const accountEmail = item.getAttribute('data-account');
+                            const folderName = item.getAttribute('data-folder');
+                            const categoryName = item.getAttribute('data-category');
+                            
+                            let count = 0;
+                            if (accountEmail && accountEmail !== "") {
+                                // Account events
+                                count = events.filter(e => e.sourceAccount === accountEmail).length;
+                            } else if (folderName && folderName !== "") {
+                                // Top-level folder
+                                if (folderName === 'Starred') {
+                                    if (currentAccount) {
+                                        count = events.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                    } else {
+                                        count = events.filter(e => e.starred).length;
+                                    }
+                                } else if (folderName === 'All Calendars') {
+                                    if (currentAccount) {
+                                        count = events.filter(e => e.sourceAccount === currentAccount).length;
+                                    } else {
+                                        count = events.length;
+                                    }
+                                }
+                            } else if (categoryName) {
+                                // Category
+                                if (currentAccount) {
+                                    count = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                                } else {
+                                    count = events.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                                }
+                            }
+                            countEl.textContent = count.toString();
+                        }
+                    });
+
+                    // Update visual selection
+                    document.querySelectorAll('.folder-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    if (window.selectedFolderId) {
+                        const selectedItem = document.getElementById(window.selectedFolderId);
+                        if (selectedItem) {
+                            selectedItem.classList.add('active');
+                        }
+                    }
+                    
+                    // Also keep account selection active if we're filtering within an account
+                    if (currentAccount) {
+                        const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
+                        if (accountItem) {
+                            accountItem.classList.add('active');
+                        }
+                    }
+                }, 0);
             };
 
             window.updateDate = (element) => {
@@ -232,14 +470,38 @@
             window.filterEventsByAccount = (accountEmail) => {
                 currentFilterType = 'account';
                 currentFilterValue = accountEmail;
+                currentAccount = accountEmail;
+                currentTag = null;
+                window.selectedFolderId = accountEmail ? `account-${accountEmail.replace('@', '-at-')}` : 'folder-All Calendars';
                 renderCalendar();
             };
 
             window.filterEventsByFolder = (folderName) => {
-                currentFilterType = 'folder';
-                currentFilterValue = folderName;
+                currentTag = null;
+                const lowerCaseFolderName = folderName.toLowerCase();
+                
+                if (lowerCaseFolderName === 'all calendars') {
+                    // When clicking on All Calendars, show all events and reset account filter
+                    currentFilterType = 'folder';
+                    currentFilterValue = folderName;
+                    currentAccount = null;
+                } else if (lowerCaseFolderName === 'starred') {
+                    currentFilterType = 'starred';
+                    currentFilterValue = null;
+                } else {
+                    currentFilterType = 'folder';
+                    currentFilterValue = folderName;
+                }
+                window.selectedFolderId = `folder-${folderName}`;
                 renderCalendar();
             };
+
+            window.filterEventsByTag = (tagName) => {
+                currentFilterType = 'tag';
+                currentTag = tagName;
+                window.selectedFolderId = `category-${tagName}`;
+                renderCalendar();
+            }
 
             renderCalendar();
         </script>
