@@ -15,7 +15,7 @@
          <script type="module" id="init">
             const {render} = Lightview;
             const {local} = lvIFrame;
-                        const {user, ui} = await local(lvIFrame.import("./"));
+                        const {user, ui, navigate} = await local(lvIFrame.import("./"));
             
             const contacts = await getContactsFromAccounts(user);
             
@@ -191,25 +191,37 @@
                 // Update header title
                 const headerTitleEl = document.querySelector('.plugin-header h1');
                 if (headerTitleEl) {
-                    let title;
-                    if (currentTag) {
-                        if (currentAccount) {
-                            title = `${currentAccount} - Categories - ${currentTag}`;
-                        } else {
-                            title = `Categories - ${currentTag}`;
-                        }
-                    } else if (currentAccount) {
-                        // Check if we're also filtering by a folder
-                        const folderName = window.selectedFolderId ? window.selectedFolderId.replace('folder-', '') : null;
-                        if (folderName && folderName !== 'All Contacts') {
-                            title = `${currentAccount} - ${folderName}`;
-                        } else {
-                            title = `${currentAccount}`;
-                        }
-                    } else {
-                        title = 'Contacts';
+                    let titleParts = ['Contacts'];
+                    if (currentAccount) {
+                        titleParts.push(' - ');
+                        titleParts.push({
+                            tagName: 'a',
+                            attributes: {
+                                href: '#',
+                                onclick: `event.preventDefault(); navigate('../account/index.html?account=${encodeURIComponent(currentAccount)}', window.location.href)`
+                            },
+                            children: [currentAccount]
+                        });
                     }
-                    headerTitleEl.textContent = title;
+                    // Clear existing content and render new title
+                    headerTitleEl.innerHTML = '';
+                    if (titleParts.length === 1) {
+                        headerTitleEl.textContent = titleParts[0];
+                    } else {
+                        // Render the title with link
+                        const titleText = document.createTextNode(titleParts[0] + ' ');
+                        const dashText = document.createTextNode(titleParts[1]);
+                        const linkEl = document.createElement('a');
+                        linkEl.href = '#';
+                        linkEl.onclick = (e) => {
+                            e.preventDefault();
+                            navigate('../account/index.html?account=' + encodeURIComponent(currentAccount), window.location.href);
+                        };
+                        linkEl.textContent = titleParts[2].children[0];
+                        headerTitleEl.appendChild(titleText);
+                        headerTitleEl.appendChild(dashText);
+                        headerTitleEl.appendChild(linkEl);
+                    }
                 }
                 
                 // Update visual selection

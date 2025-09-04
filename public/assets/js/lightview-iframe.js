@@ -236,10 +236,34 @@
           resolve(msg.value);
           break;
         }
+        case 'navigate': {
+            const iframes = document.querySelectorAll('iframe');
+            for (const iframe of iframes) {
+                try {
+                    // Normalize URLs to absolute form for comparison
+                    const frameUrl = new URL(iframe.src, location.href).href;
+                    const msgUrl = new URL(msg.srcHref, location.href).href;
+                    if (frameUrl === msgUrl) {
+                        iframe.src = new URL(msg.url, msg.srcHref).href;
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error during navigation', e);
+                }
+            }
+            console.warn(`Iframe with src ${msg.srcHref} not found for navigation.`);
+            break;
+        }
       }
     },500)
     
   });
+
+  function navigate(url, baseUrl = null) {
+    // Resolve URL relative to baseUrl if provided, otherwise use current location
+    const resolvedUrl = baseUrl ? new URL(url, baseUrl).href : url;
+    post('/', { type: 'navigate', url: resolvedUrl, srcHref: location.href });
+  }
 
   const localize = ({value},proxy) => {
     const object = Array.isArray(value) ? [] : {};
@@ -266,5 +290,5 @@
   /* -------------------------------------------------- */
   /* 9.  PUBLIC API – leaves window.import untouched    */
   /* -------------------------------------------------- */
-  window.lvIFrame = { export: export_, import: import_, local };
+  window.lvIFrame = { export: export_, import: import_, local, navigate };
 })();

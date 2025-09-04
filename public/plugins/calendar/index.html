@@ -22,8 +22,10 @@
             let currentFilterType = 'folder';
             let currentFilterValue = 'All Calendars';
             let currentDate = new Date();
+            let selectedDate = new Date();
             let currentTag = null;
             let currentAccount = null;
+            let currentView = 'monthly'; // 'weekly', 'monthly', 'quarterly'
             window.selectedFolderId = 'folder-All Calendars';
 
             const getHeaderTitle = () => {
@@ -33,25 +35,74 @@
                 
                 let title = `${monthName} ${year}`;
                 
-                if (currentTag) {
-                    if (currentAccount) {
-                        title += ` - ${currentAccount} - Categories - ${currentTag}`;
+                if (currentView === 'weekly') {
+                    const weekStart = new Date(currentDate);
+                    weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    
+                    const startMonth = weekStart.toLocaleString('default', { month: 'short' });
+                    const endMonth = weekEnd.toLocaleString('default', { month: 'short' });
+                    
+                    if (startMonth === endMonth) {
+                        title = `${startMonth} ${weekStart.getDate()}-${weekEnd.getDate()}, ${year}`;
                     } else {
-                        title += ` - Categories - ${currentTag}`;
+                        title = `${startMonth} ${weekStart.getDate()} - ${endMonth} ${weekEnd.getDate()}, ${year}`;
                     }
-                } else if (currentAccount) {
-                    if (currentFilterType === 'starred') {
-                        title += ` - ${currentAccount} - Starred`;
-                    } else {
-                        title += ` - ${currentAccount}`;
-                    }
-                } else if (currentFilterType === 'starred') {
-                    title += ` - Starred`;
+                } else if (currentView === 'quarterly') {
+                    const quarter = Math.floor(month / 3) + 1;
+                    title = `Q${quarter} ${year}`;
                 }
                 
-                return title;
+                const titleParts = [title];
+
+                if (currentAccount) {
+                    titleParts.push(' - ');
+                    titleParts.push({
+                        tagName: 'a',
+                        attributes: { 
+                            href: '#',
+                            onclick: `event.preventDefault(); lvIFrame.navigate('../account/index.html?account=${encodeURIComponent(currentAccount)}')` 
+                        },
+                        children: [currentAccount]
+                    });
+                }
+                
+                return titleParts;
             };
 
+            window.switchView = (viewType) => {
+                currentView = viewType;
+                // Update date picker to reflect current view
+                const datePicker = document.querySelector('.date-picker');
+                if (datePicker) {
+                    datePicker.value = currentDate.toISOString().split('T')[0];
+                }
+                renderCalendar();
+            };
+
+            window.navigatePrevious = () => {
+                if (currentView === 'weekly') {
+                    currentDate.setDate(currentDate.getDate() - 7);
+                } else if (currentView === 'monthly') {
+                    currentDate.setMonth(currentDate.getMonth() - 1);
+                } else if (currentView === 'quarterly') {
+                    currentDate.setMonth(currentDate.getMonth() - 3);
+                }
+                renderCalendar();
+            };
+
+            window.navigateNext = () => {
+                if (currentView === 'weekly') {
+                    currentDate.setDate(currentDate.getDate() + 7);
+                } else if (currentView === 'monthly') {
+                    currentDate.setMonth(currentDate.getMonth() + 1);
+                } else if (currentView === 'quarterly') {
+                    currentDate.setMonth(currentDate.getMonth() + 3);
+                }
+                renderCalendar();
+            };
+            
             const applyFilters = () => {
                 if (currentFilterType === 'account') {
                     if (currentFilterValue) {
@@ -61,9 +112,9 @@
                     }
                 } else if (currentFilterType === 'tag') {
                     if (currentAccount) {
-                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(currentTag));
+                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount);
                     } else {
-                        filteredEvents = events.filter(e => e.tags && e.tags.includes(currentTag));
+                        filteredEvents = events;
                     }
                 } else if (currentFilterType === 'starred') {
                     if (currentAccount) {
@@ -80,29 +131,21 @@
                 }
             };
 
-            const renderCalendar = async () => {
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const monthName = currentDate.toLocaleString('default', { month: 'long' });
-
-                events = await getEventsFromAccounts(user, year);
-                applyFilters();
-
+            const createMiniCalendar = (year, month, monthEvents) => {
                 const firstDayOfMonth = new Date(year, month, 1);
                 const lastDayOfMonth = new Date(year, month + 1, 0);
-
                 const firstDayOfWeek = firstDayOfMonth.getDay();
                 const totalDays = lastDayOfMonth.getDate();
 
                 const days = [];
-                const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
+                const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => ({
                     tagName: 'div',
-                    attributes: { class: 'calendar-day-header' },
+                    attributes: { class: 'mini-calendar-day-header' },
                     children: [day]
                 }));
 
                 for (let i = 0; i < firstDayOfWeek; i++) {
-                    days.push({ tagName: 'div', attributes: { class: 'calendar-day empty' } });
+                    days.push({ tagName: 'div', attributes: { class: 'mini-calendar-day empty' } });
                 }
 
                 for (let day = 1; day <= totalDays; day++) {
@@ -110,58 +153,286 @@
                     const today = new Date();
                     const isToday = date.toDateString() === today.toDateString();
 
-                    const dayEvents = filteredEvents.filter(event => {
-                        const [yearStr, monthStr, dayStr] = event.date.split('-');
-                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                        return eventDate.getFullYear() === year &&
-                               eventDate.getMonth() === month &&
-                               eventDate.getDate() === day;
+                    const isSelected = date.toDateString() === selectedDate.toDateString();
+
+                    const hasEvents = monthEvents.some(event => {
+                        const [,, eventDay] = event.date.split('-');
+                        return parseInt(eventDay) === day;
                     });
 
                     days.push({
                         tagName: 'div',
-                        attributes: { class: `calendar-day ${isToday ? 'today' : ''}` },
+                        attributes: { 
+                            class: `mini-calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''} ${isSelected ? 'selected' : ''}`,
+                            onclick: `selectDate('${date.toISOString()}')`
+                        },
                         children: [
                             {
                                 tagName: 'div',
-                                attributes: { class: 'day-number' },
+                                attributes: { class: 'mini-day-number' },
                                 children: [day.toString()]
-                            },
-                            ...dayEvents.map(event => ({
-                                tagName: 'div',
-                                attributes: { class: `calendar-event ${event.starred ? 'starred' : ''}` },
-                                children: [
-                                    event.starred ? {
-                                        tagName: 'i',
-                                        attributes: { class: 'fas fa-star event-star' }
-                                    } : null,
-                                    event.title
-                                ].filter(Boolean)
-                            }))
+                            }
                         ]
                     });
                 }
 
+                return {
+                    tagName: 'div',
+                    attributes: { class: 'mini-calendar' },
+                    children: [
+                        {
+                            tagName: 'div',
+                            attributes: { class: 'mini-calendar-grid' },
+                            children: [...dayHeaders, ...days]
+                        }
+                    ]
+                };
+            };
+
+            const renderCalendar = async () => {
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const monthName = currentDate.toLocaleString('default', { month: 'long' });
+
+                events = await getEventsFromAccounts(user, year);
+                applyFilters();  // Apply current filters to get filteredEvents
+
+                let days = [];
+                let dayHeaders = [];
+                let gridClass = 'calendar-grid';
+                let currentPeriodEvents = [];
+
+                if (currentView === 'weekly') {
+                    // Weekly view logic
+                    const weekStart = new Date(currentDate);
+                    weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+                    
+                    dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
+                        tagName: 'div',
+                        attributes: { class: 'calendar-day-header' },
+                        children: [day]
+                    }));
+
+                    for (let i = 0; i < 7; i++) {
+                        const date = new Date(weekStart);
+                        date.setDate(weekStart.getDate() + i);
+                        const today = new Date();
+                        const isToday = date.toDateString() === today.toDateString();
+
+                        const dayEvents = filteredEvents.filter(event => {
+                            const [yearStr, monthStr, dayStr] = event.date.split('-');
+                            const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                            return eventDate.toDateString() === date.toDateString();
+                        });
+
+                        let isHighlighted = false;
+                        if (currentFilterType === 'tag' && currentTag) {
+                            isHighlighted = dayEvents.some(event => event.tags && event.tags.includes(currentTag));
+                        }
+
+                        const isSelected = date.toDateString() === selectedDate.toDateString();
+
+                        days.push({
+                            tagName: 'div',
+                            attributes: { 
+                                class: `calendar-day ${isToday ? 'today' : ''} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`,
+                                onclick: `selectDate('${date.toISOString()}')`
+                             },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'day-number' },
+                                    children: [date.getDate().toString()]
+                                },
+                                ...dayEvents.map(event => ({
+                                    tagName: 'div',
+                                    attributes: { 
+                                        class: `calendar-event ${event.starred ? 'starred' : ''}`,
+                                        style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
+                                    },
+                                    children: [
+                                        event.starred ? {
+                                            tagName: 'i',
+                                            attributes: { class: 'fas fa-star event-star' }
+                                        } : null,
+                                        event.title
+                                    ].filter(Boolean)
+                                }))
+                            ]
+                        });
+                    }
+                    
+                    currentPeriodEvents = filteredEvents.filter(event => {
+                        const [yearStr, monthStr, dayStr] = event.date.split('-');
+                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                        return eventDate >= weekStart && eventDate <= new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
+                    });
+                    
+                } else if (currentView === 'quarterly') {
+                    // Quarterly view logic
+                    const quarter = Math.floor(month / 3);
+                    const quarterStartMonth = quarter * 3;
+                    
+                    dayHeaders = [];
+                    for (let i = 0; i < 3; i++) {
+                        const monthIndex = quarterStartMonth + i;
+                        const monthDate = new Date(year, monthIndex, 1);
+                        const monthName = monthDate.toLocaleString('default', { month: 'short' });
+                        dayHeaders.push({
+                            tagName: 'div',
+                            attributes: { class: 'calendar-day-header' },
+                            children: [monthName]
+                        });
+                    }
+                    
+                    gridClass = 'calendar-grid-quarterly';
+                    
+                    for (let i = 0; i < 3; i++) {
+                        const monthIndex = quarterStartMonth + i;
+                        const monthDate = new Date(year, monthIndex, 1);
+                        const monthName = monthDate.toLocaleString('default', { month: 'long' });
+                        
+                        const monthEvents = filteredEvents.filter(event => {
+                            const [yearStr, monthStr, dayStr] = event.date.split('-');
+                            const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                            return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
+                        });
+
+                        days.push({
+                            tagName: 'div',
+                            attributes: { class: 'calendar-month' },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'month-name' },
+                                    children: [monthName]
+                                },
+                                createMiniCalendar(year, monthIndex, monthEvents),
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'month-events' },
+                                    children: monthEvents.map(event => ({
+                                        tagName: 'div',
+                                        attributes: { 
+                                            class: `calendar-event ${event.starred ? 'starred' : ''}`,
+                                            style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
+                                        },
+                                        children: [
+                                            event.starred ? {
+                                                tagName: 'i',
+                                                attributes: { class: 'fas fa-star event-star' }
+                                            } : null,
+                                            `${event.date.split('-')[2]}: ${event.title}`
+                                        ].filter(Boolean)
+                                    }))
+                                }
+                            ]
+                        });
+                    }
+                    
+                    currentPeriodEvents = filteredEvents.filter(event => {
+                        const [yearStr, monthStr, dayStr] = event.date.split('-');
+                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                        const eventQuarter = Math.floor(eventDate.getMonth() / 3);
+                        return eventDate.getFullYear() === year && eventQuarter === quarter;
+                    });
+                    
+                } else {
+                    // Monthly view logic (existing code)
+                    // Filter events for current month for count calculations
+                    currentPeriodEvents = filteredEvents.filter(event => {
+                        const [yearStr, monthStr, dayStr] = event.date.split('-');
+                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                        return eventDate.getFullYear() === year && eventDate.getMonth() === month;
+                    });
+
+                    const firstDayOfMonth = new Date(year, month, 1);
+                    const lastDayOfMonth = new Date(year, month + 1, 0);
+
+                    const firstDayOfWeek = firstDayOfMonth.getDay();
+                    const totalDays = lastDayOfMonth.getDate();
+
+                    dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
+                        tagName: 'div',
+                        attributes: { class: 'calendar-day-header' },
+                        children: [day]
+                    }));
+
+                    for (let i = 0; i < firstDayOfWeek; i++) {
+                        days.push({ tagName: 'div', attributes: { class: 'calendar-day empty' } });
+                    }
+
+                    for (let day = 1; day <= totalDays; day++) {
+                        const date = new Date(year, month, day);
+                        const today = new Date();
+                        const isToday = date.toDateString() === today.toDateString();
+
+                        const dayEvents = filteredEvents.filter(event => {
+                            const [yearStr, monthStr, dayStr] = event.date.split('-');
+                            const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+                            return eventDate.getFullYear() === year &&
+                                   eventDate.getMonth() === month &&
+                                   eventDate.getDate() === day;
+                        });
+
+                        let isHighlighted = false;
+                        if (currentFilterType === 'tag' && currentTag) {
+                            isHighlighted = dayEvents.some(event => event.tags && event.tags.includes(currentTag));
+                        }
+
+                        const isSelected = date.toDateString() === selectedDate.toDateString();
+
+                        days.push({
+                            tagName: 'div',
+                            attributes: { 
+                                class: `calendar-day ${isToday ? 'today' : ''} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`,
+                                onclick: `selectDate('${date.toISOString()}')`
+                            },
+                            children: [
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'day-number' },
+                                    children: [day.toString()]
+                                },
+                                ...dayEvents.map(event => ({
+                                    tagName: 'div',
+                                    attributes: { 
+                                        class: `calendar-event ${event.starred ? 'starred' : ''}`,
+                                        style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
+                                    },
+                                    children: [
+                                        event.starred ? {
+                                            tagName: 'i',
+                                            attributes: { class: 'fas fa-star event-star' }
+                                        } : null,
+                                        event.title
+                                    ].filter(Boolean)
+                                }))
+                            ]
+                        });
+                    }
+                }
+
                 const userAccounts = user.accounts || {};
                 const accountEmails = Object.keys(userAccounts);
-                const tags = [...new Set(events.flatMap(e => e.tags || []))];
+                const tags = [...new Set(filteredEvents.flatMap(e => e.tags || []))];
                 const tagIcons = ui.tagIcons || {};
 
                 const folders = [
                     { 
                         name: "All Calendars", 
                         icon: "fas fa-calendar-alt", 
-                        count: events.length,
+                        count: currentPeriodEvents.length,
                         subfolders: accountEmails.map(email => ({
                             email: email,
                             name: email,
-                            count: events.filter(e => e.sourceAccount === email).length
+                            count: currentPeriodEvents.filter(e => e.sourceAccount === email).length
                         }))
                     },
                     { 
                         name: "Starred", 
                         icon: "fas fa-star",
-                        count: events.filter(e => e.starred).length
+                        count: currentPeriodEvents.filter(e => e.starred).length
                     },
                     { 
                         name: "Categories", 
@@ -170,7 +441,7 @@
                             name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
                             originalTag: tag,
                             icon: tagIcons[tag] || tagIcons.default,
-                            count: events.filter(e => e.tags && e.tags.includes(tag)).length
+                            count: currentPeriodEvents.filter(e => e.tags && e.tags.includes(tag)).length
                         }))
                     }
                 ];
@@ -201,28 +472,28 @@
                         let count = 0;
                         if (accountEmail && accountEmail !== "") {
                             // Account events
-                            count = events.filter(e => e.sourceAccount === accountEmail).length;
+                            count = currentPeriodEvents.filter(e => e.sourceAccount === accountEmail).length;
                         } else if (folderName && folderName !== "") {
                             // Top-level folder
                             if (folderName === 'Starred') {
                                 if (currentAccount) {
-                                    count = events.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                    count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.starred).length;
                                 } else {
-                                    count = events.filter(e => e.starred).length;
+                                    count = currentPeriodEvents.filter(e => e.starred).length;
                                 }
                             } else if (folderName === 'All Calendars') {
                                 if (currentAccount) {
-                                    count = events.filter(e => e.sourceAccount === currentAccount).length;
+                                    count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount).length;
                                 } else {
-                                    count = events.length;
+                                    count = currentPeriodEvents.length;
                                 }
                             }
                         } else if (categoryName) {
                             // Category
                             if (currentAccount) {
-                                count = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                                count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
                             } else {
-                                count = events.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                                count = currentPeriodEvents.filter(e => e.tags && e.tags.includes(categoryName)).length;
                             }
                         }
                         countEl.textContent = count.toString();
@@ -248,7 +519,7 @@
                     }
                 }
 
-                const calendarWrapper = document.querySelector('.calendar-wrapper');
+                const calendarWrapper = document.querySelector('.plugin-wrapper');
                 
                 if (calendarWrapper) {
                     const sidebar = document.querySelector('.calendar-sidebar');
@@ -258,7 +529,7 @@
                         children: folderItems
                     }, {replaceEl: sidebar});
 
-                    const currentCalendarGrid = calendarWrapper.querySelector('.calendar-grid');
+                    const currentCalendarGrid = calendarWrapper.querySelector('.calendar-grid, .calendar-grid-quarterly');
                     const currentCalendarHeader = calendarWrapper.querySelector('.plugin-header');
                     
                     render({
@@ -266,8 +537,54 @@
                         attributes: { class: 'plugin-header' },
                         children: [
                            {
+                                tagName: 'button',
+                                attributes: { 
+                                    class: 'nav-button',
+                                    onclick: 'navigatePrevious()'
+                                },
+                                children: ['‹']
+                           },
+                           {
                                 tagName: 'h1',
-                                children: [getHeaderTitle()]
+                                children: getHeaderTitle()
+                           },
+                           {
+                                tagName: 'button',
+                                attributes: { 
+                                    class: 'nav-button',
+                                    onclick: 'navigateNext()'
+                                },
+                                children: ['›']
+                           },
+                           {
+                                tagName: 'div',
+                                attributes: { class: 'view-toggles' },
+                                children: [
+                                    {
+                                        tagName: 'button',
+                                        attributes: { 
+                                            class: `view-toggle ${currentView === 'weekly' ? 'active' : ''}`,
+                                            onclick: 'switchView("weekly")'
+                                        },
+                                        children: ['Week']
+                                    },
+                                    {
+                                        tagName: 'button',
+                                        attributes: { 
+                                            class: `view-toggle ${currentView === 'monthly' ? 'active' : ''}`,
+                                            onclick: 'switchView("monthly")'
+                                        },
+                                        children: ['Month']
+                                    },
+                                    {
+                                        tagName: 'button',
+                                        attributes: { 
+                                            class: `view-toggle ${currentView === 'quarterly' ? 'active' : ''}`,
+                                            onclick: 'switchView("quarterly")'
+                                        },
+                                        children: ['Quarter']
+                                    }
+                                ]
                            },
                            {
                                 tagName: 'input',
@@ -283,7 +600,7 @@
 
                     render({
                         tagName: 'div',
-                        attributes: { class: 'calendar-grid' },
+                        attributes: { class: gridClass },
                         children: [...dayHeaders, ...days]
                     }, { replaceEl: currentCalendarGrid });
 
@@ -300,28 +617,28 @@
                                 let count = 0;
                                 if (accountEmail && accountEmail !== "") {
                                     // Account events
-                                    count = events.filter(e => e.sourceAccount === accountEmail).length;
+                                    count = currentPeriodEvents.filter(e => e.sourceAccount === accountEmail).length;
                                 } else if (folderName && folderName !== "") {
                                     // Top-level folder
                                     if (folderName === 'Starred') {
                                         if (currentAccount) {
-                                            count = events.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                            count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.starred).length;
                                         } else {
-                                            count = events.filter(e => e.starred).length;
+                                            count = currentPeriodEvents.filter(e => e.starred).length;
                                         }
                                     } else if (folderName === 'All Calendars') {
                                         if (currentAccount) {
-                                            count = events.filter(e => e.sourceAccount === currentAccount).length;
+                                            count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount).length;
                                         } else {
-                                            count = events.length;
+                                            count = currentPeriodEvents.length;
                                         }
                                     }
                                 } else if (categoryName) {
                                     // Category
                                     if (currentAccount) {
-                                        count = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                                        count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
                                     } else {
-                                        count = events.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                                        count = currentPeriodEvents.filter(e => e.tags && e.tags.includes(categoryName)).length;
                                     }
                                 }
                                 countEl.textContent = count.toString();
@@ -360,8 +677,54 @@
                             attributes: { class: 'plugin-header' },
                             children: [
                                 {
+                                    tagName: 'button',
+                                    attributes: { 
+                                        class: 'nav-button',
+                                        onclick: 'navigatePrevious()'
+                                    },
+                                    children: ['‹']
+                                },
+                                {
                                     tagName: 'h1',
-                                    children: [getHeaderTitle()]
+                                    children: getHeaderTitle()
+                                },
+                                {
+                                    tagName: 'button',
+                                    attributes: { 
+                                        class: 'nav-button',
+                                        onclick: 'navigateNext()'
+                                    },
+                                    children: ['›']
+                                },
+                                {
+                                    tagName: 'div',
+                                    attributes: { class: 'view-toggles' },
+                                    children: [
+                                        {
+                                            tagName: 'button',
+                                            attributes: { 
+                                                class: `view-toggle ${currentView === 'weekly' ? 'active' : ''}`,
+                                                onclick: 'switchView("weekly")'
+                                            },
+                                            children: ['Week']
+                                        },
+                                        {
+                                            tagName: 'button',
+                                            attributes: { 
+                                                class: `view-toggle ${currentView === 'monthly' ? 'active' : ''}`,
+                                                onclick: 'switchView("monthly")'
+                                            },
+                                            children: ['Month']
+                                        },
+                                        {
+                                            tagName: 'button',
+                                            attributes: { 
+                                                class: `view-toggle ${currentView === 'quarterly' ? 'active' : ''}`,
+                                                onclick: 'switchView("quarterly")'
+                                            },
+                                            children: ['Quarter']
+                                        }
+                                    ]
                                 },
                                 {
                                     tagName: 'input',
@@ -389,7 +752,7 @@
                                     children: [
                                         {
                                             tagName: 'div',
-                                            attributes: { class: 'calendar-grid' },
+                                            attributes: { class: gridClass },
                                             children: [...dayHeaders, ...days]
                                         }
                                     ]
@@ -412,28 +775,28 @@
                             let count = 0;
                             if (accountEmail && accountEmail !== "") {
                                 // Account events
-                                count = events.filter(e => e.sourceAccount === accountEmail).length;
+                                count = currentPeriodEvents.filter(e => e.sourceAccount === accountEmail).length;
                             } else if (folderName && folderName !== "") {
                                 // Top-level folder
                                 if (folderName === 'Starred') {
                                     if (currentAccount) {
-                                        count = events.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                        count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.starred).length;
                                     } else {
-                                        count = events.filter(e => e.starred).length;
+                                        count = currentPeriodEvents.filter(e => e.starred).length;
                                     }
                                 } else if (folderName === 'All Calendars') {
                                     if (currentAccount) {
-                                        count = events.filter(e => e.sourceAccount === currentAccount).length;
+                                        count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount).length;
                                     } else {
-                                        count = events.length;
+                                        count = currentPeriodEvents.length;
                                     }
                                 }
                             } else if (categoryName) {
                                 // Category
                                 if (currentAccount) {
-                                    count = events.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
+                                    count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
                                 } else {
-                                    count = events.filter(e => e.tags && e.tags.includes(categoryName)).length;
+                                    count = currentPeriodEvents.filter(e => e.tags && e.tags.includes(categoryName)).length;
                                 }
                             }
                             countEl.textContent = count.toString();
@@ -464,6 +827,12 @@
             window.updateDate = (element) => {
                 const [year, month, day] = element.value.split('-').map(Number);
                 currentDate = new Date(year, month - 1, day);
+                renderCalendar();
+            };
+
+            window.selectDate = (dateString) => {
+                selectedDate = new Date(dateString);
+                currentDate = new Date(dateString);
                 renderCalendar();
             };
 

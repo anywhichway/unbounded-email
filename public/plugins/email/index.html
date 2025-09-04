@@ -15,7 +15,7 @@
          <script type="module" id="init">
             const {render} = Lightview;
             const {local} = lvIFrame;
-            const {user, ui} = await local(lvIFrame.import("./"));
+            const {user, ui, navigate} = await local(lvIFrame.import("./"));
             
             const emails = await getEmailsFromAccounts(user);
             const tagIcons = ui.tagIcons || {};
@@ -115,7 +115,7 @@
 
             window.updateSnoozeDate = (emailId, newDateTime) => {
                 // Find the email and update its snoozed property
-                const email = emails.find(e => e.id === emailId);
+                const email = emails.find(e => e.id === parseFloat(emailId));
                 if (email) {
                     if (newDateTime) {
                         email.snoozed = new Date(newDateTime).toISOString();
@@ -167,7 +167,7 @@
 
             window.updateScheduleDate = (emailId, newDateTime) => {
                 // Find the email and update its scheduled property
-                const email = emails.find(e => e.id === emailId);
+                const email = emails.find(e => e.id === parseFloat(emailId));
                 if (email) {
                     if (newDateTime) {
                         email.scheduled = new Date(newDateTime).toISOString();
@@ -218,7 +218,7 @@
             }
 
             window.replyToEmail = (emailId) => {
-                const email = emails.find(e => e.id === emailId);
+                const email = emails.find(e => e.id === parseFloat(emailId));
                 if (email) {
                     alert(`Reply to: ${email.subject}`);
                     // TODO: Implement reply functionality
@@ -226,7 +226,7 @@
             }
 
             window.forwardEmail = (emailId) => {
-                const email = emails.find(e => e.id === emailId);
+                const email = emails.find(e => e.id === parseFloat(emailId));
                 if (email) {
                     alert(`Forward: ${email.subject}`);
                     // TODO: Implement forward functionality
@@ -328,7 +328,7 @@
             }
 
             window.tagEmail = (emailId) => {
-                const email = emails.find(e => e.id === emailId);
+                const email = emails.find(e => e.id === parseFloat(emailId));
                 if (email) {
                     const tag = prompt('Enter tag (e.g., #important, #work):', email.tags ? email.tags[0] : '');
                     if (tag) {
@@ -342,7 +342,7 @@
             }
 
             window.markAsSpam = (emailId) => {
-                const email = emails.find(e => e.id === emailId);
+                const email = emails.find(e => e.id === parseFloat(emailId));
                 if (email) {
                     email.folder = 'Spam';
                     renderEmailList();
@@ -350,7 +350,7 @@
             }
 
             window.deleteEmail = (emailId) => {
-                const emailIndex = emails.findIndex(e => e.id === emailId);
+                const emailIndex = emails.findIndex(e => e.id === parseFloat(emailId));
                 if (emailIndex !== -1) {
                     if (confirm('Are you sure you want to delete this email?')) {
                         emails[emailIndex].folder = 'Trash';
@@ -367,7 +367,7 @@
                     { 
                         name: "Inbox", 
                         icon: "fas fa-inbox", 
-                        count: emails.filter(e => e.folder === 'Inbox').length,
+                        count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Inbox').length : emails.filter(e => e.folder === 'Inbox').length,
                         subfolders: accountEmails.map(accountEmail => {
                             const account = userAccounts[accountEmail];
                             const standardFolders = ['Inbox', 'Drafts', 'Scheduled', 'Snoozed', 'Sent', 'Spam', 'Trash'];
@@ -385,25 +385,25 @@
                             };
                         })
                     },
-                    { name: "Starred", icon: "fas fa-star", count: emails.filter(e => e.starred).length },
-                    { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.folder === 'Drafts').length },
-                    { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.folder === 'Scheduled').length },
-                    { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
-                    { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.folder === 'Sent').length },
-                    { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.folder === 'Spam').length },
-                    { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.folder === 'Trash').length },
+                    { name: "Starred", icon: "fas fa-star", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.starred).length : emails.filter(e => e.starred).length },
+                    { name: "Drafts", icon: "fas fa-file-alt", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Drafts').length : emails.filter(e => e.folder === 'Drafts').length },
+                    { name: "Scheduled", icon: "fas fa-calendar-alt", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.scheduled).length : emails.filter(e => e.scheduled).length },
+                    { name: "Snoozed", icon: "fas fa-clock", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.snoozed).length : emails.filter(e => e.snoozed).length },
+                    { name: "Sent", icon: "fas fa-paper-plane", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Sent').length : emails.filter(e => e.folder === 'Sent').length },
+                    { name: "Spam", icon: "fas fa-exclamation-triangle", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Spam').length : emails.filter(e => e.folder === 'Spam').length },
+                    { name: "Trash", icon: "fas fa-trash", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Trash').length : emails.filter(e => e.folder === 'Trash').length },
                 ];
                 
                 // Add global categories
                 folders.push({
                     name: "Categories", 
                     icon: "fas fa-tags", 
-                    count: emails.filter(e => e.tags && e.tags.length > 0).length,
+                    count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.length > 0).length : emails.filter(e => e.tags && e.tags.length > 0).length,
                     subfolders: tags.map(tag => ({
                         name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
                         originalTag: tag,
                         icon: tagIcons[tag] || tagIcons.default,
-                        count: emails.filter(e => e.tags && e.tags.includes(tag)).length
+                        count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(tag)).length : emails.filter(e => e.tags && e.tags.includes(tag)).length
                     }))
                 });
 
@@ -667,17 +667,37 @@
                 // Update header title
                 const headerTitleEl = document.querySelector('.plugin-header-left h1');
                 if (headerTitleEl) {
-                    let title;
-                    if (currentCategory) {
-                        title = `Categories - ${currentCategory}`;
-                    } else if (currentAccount) {
-                        title = `${currentAccount} - ${currentFolder}`;
-                    } else if (currentFolder) {
-                        title = currentFolder;
-                    } else {
-                        title = 'All Emails';
+                    let titleParts = ['Email'];
+                    if (currentAccount) {
+                        titleParts.push(' - ');
+                        titleParts.push({
+                            tagName: 'a',
+                            attributes: {
+                                href: '#',
+                                onclick: `event.preventDefault(); navigate('../account/index.html?account=${encodeURIComponent(currentAccount)}', window.location.href)`
+                            },
+                            children: [currentAccount]
+                        });
                     }
-                    headerTitleEl.textContent = title;
+                    // Clear existing content and render new title
+                    headerTitleEl.innerHTML = '';
+                    if (titleParts.length === 1) {
+                        headerTitleEl.textContent = titleParts[0];
+                    } else {
+                        // Render the title with link
+                        const titleText = document.createTextNode(titleParts[0] + ' ');
+                        const dashText = document.createTextNode(titleParts[1]);
+                        const linkEl = document.createElement('a');
+                        linkEl.href = '#';
+                        linkEl.onclick = (e) => {
+                            e.preventDefault();
+                            navigate('../account/index.html?account=' + encodeURIComponent(currentAccount), window.location.href);
+                        };
+                        linkEl.textContent = titleParts[2].children[0];
+                        headerTitleEl.appendChild(titleText);
+                        headerTitleEl.appendChild(dashText);
+                        headerTitleEl.appendChild(linkEl);
+                    }
                 }
                 
                 // Update visual selection
@@ -718,6 +738,18 @@
                                     count = emails.filter(e => e.sourceAccount === currentAccount && e.snoozed).length;
                                 } else {
                                     count = emails.filter(e => e.snoozed).length;
+                                }
+                            } else if (folderName === 'Starred') {
+                                if (currentAccount) {
+                                    count = emails.filter(e => e.sourceAccount === currentAccount && e.starred).length;
+                                } else {
+                                    count = emails.filter(e => e.starred).length;
+                                }
+                            } else if (folderName === 'Scheduled') {
+                                if (currentAccount) {
+                                    count = emails.filter(e => e.sourceAccount === currentAccount && e.scheduled).length;
+                                } else {
+                                    count = emails.filter(e => e.scheduled).length;
                                 }
                             } else if (currentAccount) {
                                 count = emails.filter(e => e.sourceAccount === currentAccount && e.folder === folderName).length;
@@ -761,7 +793,7 @@
                     { 
                         name: "Inbox", 
                         icon: "fas fa-inbox", 
-                        count: emails.filter(e => e.folder === 'Inbox').length,
+                        count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Inbox').length : emails.filter(e => e.folder === 'Inbox').length,
                         subfolders: accountEmails.map(accountEmail => {
                             const account = userAccounts[accountEmail];
                             const standardFolders = ['Inbox', 'Drafts', 'Scheduled', 'Snoozed', 'Sent', 'Spam', 'Trash'];
@@ -779,25 +811,25 @@
                             };
                         })
                     },
-                    { name: "Starred", icon: "fas fa-star", count: emails.filter(e => e.starred).length },
-                    { name: "Drafts", icon: "fas fa-file-alt", count: emails.filter(e => e.folder === 'Drafts').length },
-                    { name: "Scheduled", icon: "fas fa-calendar-alt", count: emails.filter(e => e.folder === 'Scheduled').length },
-                    { name: "Snoozed", icon: "fas fa-clock", count: emails.filter(e => e.snoozed).length },
-                    { name: "Sent", icon: "fas fa-paper-plane", count: emails.filter(e => e.folder === 'Sent').length },
-                    { name: "Spam", icon: "fas fa-exclamation-triangle", count: emails.filter(e => e.folder === 'Spam').length },
-                    { name: "Trash", icon: "fas fa-trash", count: emails.filter(e => e.folder === 'Trash').length },
+                    { name: "Starred", icon: "fas fa-star", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.starred).length : emails.filter(e => e.starred).length },
+                    { name: "Drafts", icon: "fas fa-file-alt", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Drafts').length : emails.filter(e => e.folder === 'Drafts').length },
+                    { name: "Scheduled", icon: "fas fa-calendar-alt", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.scheduled).length : emails.filter(e => e.scheduled).length },
+                    { name: "Snoozed", icon: "fas fa-clock", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.snoozed).length : emails.filter(e => e.snoozed).length },
+                    { name: "Sent", icon: "fas fa-paper-plane", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Sent').length : emails.filter(e => e.folder === 'Sent').length },
+                    { name: "Spam", icon: "fas fa-exclamation-triangle", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Spam').length : emails.filter(e => e.folder === 'Spam').length },
+                    { name: "Trash", icon: "fas fa-trash", count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.folder === 'Trash').length : emails.filter(e => e.folder === 'Trash').length },
                 ];
                 
                 // Add global categories
                 folders.push({
                     name: "Categories", 
                     icon: "fas fa-tags", 
-                    count: emails.filter(e => e.tags && e.tags.length > 0).length,
+                    count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.length > 0).length : emails.filter(e => e.tags && e.tags.length > 0).length,
                     subfolders: tags.map(tag => ({
                         name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
                         originalTag: tag,
                         icon: tagIcons[tag] || tagIcons.default,
-                        count: emails.filter(e => e.tags && e.tags.includes(tag)).length
+                        count: currentAccount ? emails.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(tag)).length : emails.filter(e => e.tags && e.tags.includes(tag)).length
                     }))
                 });
 

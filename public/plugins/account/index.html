@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="../index.css">
+    <link rel="stylesheet" href="./index.css">
+    <script src="../../assets/js/lightview-core.js"></script>
+    <script src="../../assets/js/lightview-dom.js"></script>
+    <script src="../../assets/js/lightview-iframe.js"></script>
+    <script src="./index.js"></script>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module" id="init">
+        const {render} = Lightview;
+        const {local} = lvIFrame;
+        const {user, ui, get, set} = await local(lvIFrame.import("./"));
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const accountEmail = urlParams.get('account');
+        const account = user.accounts[accountEmail];
+
+        const renderAccountView = () => {
+            if (!account) {
+                render({
+                    tagName: 'div',
+                    attributes: { class: 'plugin-wrapper' },
+                    children: [
+                        {
+                            tagName: 'div',
+                            attributes: { class: 'plugin-header' },
+                            children: [{ tagName: 'h1', children: ['Account not found'] }]
+                        }
+                    ]
+                }, { replaceEl: document.getElementById('app') });
+                return;
+            }
+
+            render({
+                tagName: 'div',
+                attributes: { class: 'plugin-wrapper' },
+                children: [
+                    {
+                        tagName: 'div',
+                        attributes: { class: 'plugin-header' },
+                        children: [{ tagName: 'h1', children: [`Edit Account: ${accountEmail}`] }]
+                    },
+                    {
+                        tagName: 'div',
+                        attributes: { class: 'plugin-container' },
+                        children: [
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'form-group' },
+                                children: [
+                                    { tagName: 'label', attributes: { for: 'account-name' }, children: ['Account Name'] },
+                                    { tagName: 'input', attributes: { type: 'text', id: 'account-name', value: account.name || '' } }
+                                ]
+                            },
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'form-group' },
+                                children: [
+                                    { tagName: 'label', attributes: { for: 'account-color' }, children: ['Account Color'] },
+                                    { tagName: 'input', attributes: { type: 'color', id: 'account-color', value: account.color || '#007bff' } }
+                                ]
+                            },
+                            {
+                                tagName: 'div',
+                                attributes: { class: 'form-group' },
+                                children: [
+                                    { tagName: 'button', attributes: { onclick: 'saveAccount()' }, children: ['Save Changes'] },
+                                    { tagName: 'button', attributes: { class: 'delete', onclick: 'deleteAccount()' }, children: ['Delete Account'] }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }, { replaceEl: document.getElementById('app') });
+        };
+
+        window.saveAccount = async () => {
+            const newName = document.getElementById('account-name').value;
+            const newColor = document.getElementById('account-color').value;
+
+            user.accounts[accountEmail].name = newName;
+            user.accounts[accountEmail].color = newColor;
+
+            await set('user', user);
+            renderAccountView();
+            alert('Account updated successfully!');
+        };
+
+        window.deleteAccount = async () => {
+            if (confirm(`Are you sure you want to delete the account ${accountEmail}? This action cannot be undone.`)) {
+                delete user.accounts[accountEmail];
+                await set('user', user);
+                // Redirect to calendar or a safe place
+                window.location.href = '../calendar/index.html';
+            }
+        };
+
+        renderAccountView();
+    </script>
+</body>
+</html>

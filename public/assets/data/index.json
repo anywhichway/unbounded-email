@@ -5,6 +5,7 @@
             "syblackwell@anywhichway.com": {
                 "type": "Google",
                 "name": "G",
+                "color": "#007bff",
                 "folders": ["Inbox", "Drafts", "Sent", "Spam", "Trash", "Work", "Personal"],
                 "emails": [
                     {
@@ -95,6 +96,7 @@
             "syblackwell@hotmail.com": {
                 "type": "Microsost",
                 "name": "M",
+                "color": "#28a745",
                                 "folders": ["Inbox", "Drafts", "Scheduled", "Snoozed", "Sent", "Spam", "Trash", "Personal"],
                 "emails": [
                     {
@@ -310,6 +312,16 @@
                     "target": "#pluginView"
                 },
                 "children": ["💬"]
+            },
+            {
+                "tagName": "div",
+                "attributes": {
+                    "class": "plugin-icon",
+                    "title": "Configure",
+                    "href": "./plugins/configure/index.html",
+                    "target": "#pluginView"
+                },
+                "children": ["⚙️"]
             }
         ]
     }

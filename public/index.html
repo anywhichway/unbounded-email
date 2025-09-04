@@ -64,6 +64,14 @@
                     }
                 ]
             },{replaceEl:document.getElementById("init"),state:master});
+            // Custom navigation handler that works reliably
+            master.navigate = (url, baseUrl = null) => {
+                const pluginView = document.getElementById('pluginView');
+                if (pluginView) {
+                    const resolvedUrl = baseUrl ? new URL(url, baseUrl).href : url;
+                    pluginView.src = resolvedUrl;
+                }
+            };
             await lvIFrame.export(master);
         </script>
     </body>
