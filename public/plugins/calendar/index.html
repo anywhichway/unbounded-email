@@ -8,12 +8,13 @@
         <script src="../../assets/js/lightview-dom.js"></script>
         <script src="../../assets/js/lightview-href.js"></script>
         <script src="../../assets/js/lightview-iframe.js"></script>
+        <script src="../../assets/js/lightview.js"></script>
         <script src="./index.js"></script>
     </head>
     <body>
         <div id="app"></div>
          <script type="module" id="init">
-            const {render} = Lightview;
+            const {render} = Lightview("dom");
             const {local} = lvIFrame;
             const {user, ui} = await local(lvIFrame.import("./"));
 
@@ -207,11 +208,8 @@
                     const weekStart = new Date(currentDate);
                     weekStart.setDate(currentDate.getDate() - currentDate.getDay());
                     
-                    dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
-                        tagName: 'div',
-                        attributes: { class: 'calendar-day-header' },
-                        children: [day]
-                    }));
+                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    gridClass = 'calendar-grid-weekly-vertical';
 
                     for (let i = 0; i < 7; i++) {
                         const date = new Date(weekStart);
@@ -235,29 +233,57 @@
                         days.push({
                             tagName: 'div',
                             attributes: { 
-                                class: `calendar-day ${isToday ? 'today' : ''} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`,
-                                onclick: `selectDate('${date.toISOString()}')`
+                                class: `calendar-day-row ${isToday ? 'today' : ''} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`
                              },
                             children: [
                                 {
                                     tagName: 'div',
-                                    attributes: { class: 'day-number' },
-                                    children: [date.getDate().toString()]
+                                    attributes: { class: 'calendar-day-header-vertical' },
+                                    children: [dayNames[i]]
                                 },
-                                ...dayEvents.map(event => ({
+                                {
                                     tagName: 'div',
                                     attributes: { 
-                                        class: `calendar-event ${event.starred ? 'starred' : ''}`,
-                                        style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
-                                    },
+                                        class: 'calendar-day',
+                                        onclick: `selectDate('${date.toISOString()}')`
+                                     },
                                     children: [
-                                        event.starred ? {
-                                            tagName: 'i',
-                                            attributes: { class: 'fas fa-star event-star' }
-                                        } : null,
-                                        event.title
-                                    ].filter(Boolean)
-                                }))
+                                        {
+                                            tagName: 'div',
+                                            attributes: { class: 'day-number' },
+                                            children: [date.getDate().toString()]
+                                        },
+                                        ...dayEvents.map(event => {
+                                            const timeInfo = event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '';
+                                            const eventContent = [
+                                                event.starred ? {
+                                                    tagName: 'i',
+                                                    attributes: { class: 'fas fa-star event-star' }
+                                                } : null,
+                                                event.title,
+                                                timeInfo ? {
+                                                    tagName: 'div',
+                                                    attributes: { class: 'event-time' },
+                                                    children: [timeInfo]
+                                                } : null,
+                                                event.description ? {
+                                                    tagName: 'div',
+                                                    attributes: { class: 'event-description' },
+                                                    children: [event.description]
+                                                } : null
+                                            ].filter(Boolean);
+                                            
+                                            return {
+                                                tagName: 'div',
+                                                attributes: { 
+                                                    class: `calendar-event ${event.starred ? 'starred' : ''}`,
+                                                    style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
+                                                },
+                                                children: eventContent
+                                            };
+                                        })
+                                    ]
+                                }
                             ]
                         });
                     }
@@ -311,20 +337,30 @@
                                 {
                                     tagName: 'div',
                                     attributes: { class: 'month-events' },
-                                    children: monthEvents.map(event => ({
-                                        tagName: 'div',
-                                        attributes: { 
-                                            class: `calendar-event ${event.starred ? 'starred' : ''}`,
-                                            style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
-                                        },
-                                        children: [
-                                            event.starred ? {
-                                                tagName: 'i',
-                                                attributes: { class: 'fas fa-star event-star' }
-                                            } : null,
-                                            `${event.date.split('-')[2]}: ${event.title}`
-                                        ].filter(Boolean)
-                                    }))
+                                    children: monthEvents.map(event => {
+                                        const timeInfo = event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '';
+                                        const tooltip = [
+                                            event.title,
+                                            timeInfo ? `Time: ${timeInfo}` : '',
+                                            event.description ? `Description: ${event.description}` : ''
+                                        ].filter(Boolean).join('\n');
+                                        
+                                        return {
+                                            tagName: 'div',
+                                            attributes: { 
+                                                class: `calendar-event ${event.starred ? 'starred' : ''}`,
+                                                style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`,
+                                                title: tooltip
+                                            },
+                                            children: [
+                                                event.starred ? {
+                                                    tagName: 'i',
+                                                    attributes: { class: 'fas fa-star event-star' }
+                                                } : null,
+                                                `${event.date.split('-')[2]}: ${event.title}`
+                                            ].filter(Boolean)
+                                        };
+                                    })
                                 }
                             ]
                         });
@@ -394,20 +430,30 @@
                                     attributes: { class: 'day-number' },
                                     children: [day.toString()]
                                 },
-                                ...dayEvents.map(event => ({
-                                    tagName: 'div',
-                                    attributes: { 
-                                        class: `calendar-event ${event.starred ? 'starred' : ''}`,
-                                        style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
-                                    },
-                                    children: [
-                                        event.starred ? {
-                                            tagName: 'i',
-                                            attributes: { class: 'fas fa-star event-star' }
-                                        } : null,
-                                        event.title
-                                    ].filter(Boolean)
-                                }))
+                                ...dayEvents.map(event => {
+                                    const timeInfo = event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '';
+                                    const tooltip = [
+                                        event.title,
+                                        timeInfo ? `Time: ${timeInfo}` : '',
+                                        event.description ? `Description: ${event.description}` : ''
+                                    ].filter(Boolean).join('\n');
+                                    
+                                    return {
+                                        tagName: 'div',
+                                        attributes: { 
+                                            class: `calendar-event ${event.starred ? 'starred' : ''}`,
+                                            style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`,
+                                            title: tooltip
+                                        },
+                                        children: [
+                                            event.starred ? {
+                                                tagName: 'i',
+                                                attributes: { class: 'fas fa-star event-star' }
+                                            } : null,
+                                            event.title
+                                        ].filter(Boolean)
+                                    };
+                                })
                             ]
                         });
                     }
@@ -529,7 +575,7 @@
                         children: folderItems
                     }, {replaceEl: sidebar});
 
-                    const currentCalendarGrid = calendarWrapper.querySelector('.calendar-grid, .calendar-grid-quarterly');
+                    const currentCalendarGrid = calendarWrapper.querySelector('.calendar-grid, .calendar-grid-quarterly, .calendar-grid-weekly-vertical');
                     const currentCalendarHeader = calendarWrapper.querySelector('.plugin-header');
                     
                     render({
@@ -601,7 +647,7 @@
                     render({
                         tagName: 'div',
                         attributes: { class: gridClass },
-                        children: [...dayHeaders, ...days]
+                        children: currentView === 'weekly' ? days : [...dayHeaders, ...days]
                     }, { replaceEl: currentCalendarGrid });
 
                     // Apply visual selection and count updates for existing calendar
@@ -753,7 +799,7 @@
                                         {
                                             tagName: 'div',
                                             attributes: { class: gridClass },
-                                            children: [...dayHeaders, ...days]
+                                            children: currentView === 'weekly' ? days : [...dayHeaders, ...days]
                                         }
                                     ]
                                 }

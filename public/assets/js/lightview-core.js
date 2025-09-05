@@ -1,5 +1,6 @@
 (() => {
     // Shared state management function
+    let localWatchAsString = "";
     function state(data = {}) {
         // Use WeakMap for automatic cleanup when nodes are garbage collected
         const nodeWatchers = new WeakMap();
@@ -56,6 +57,11 @@
                     }
                 });
             }
+        }
+
+        localWatchAsString ||= locals.watch+"";
+        if(data.watch+""===localWatchAsString) {
+            return data;
         }
 
         const lv = this;

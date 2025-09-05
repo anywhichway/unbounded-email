@@ -7,11 +7,12 @@
         <script src="./assets/js/lightview-dom.js"></script>
         <script src="./assets/js/lightview-href.js"></script>
         <script src="./assets/js/lightview-iframe.js"></script>
+        <script src="./assets/js/lightview.js"></script>
         <link rel="stylesheet" href="./index.css">
     </head>
     <body>
         <script type="module" id="init">
-            const {render,state} = Lightview;
+            const {render,state} = Lightview("dom");
             const master = await fetch("./assets/data/index.json").then(r => r.json());
             master.user.addContact = function(contact) {
                 this.push(contact);

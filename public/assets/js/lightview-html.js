@@ -6,7 +6,7 @@
         async render(content, {state: currentState, nonce, baseURI = typeof document !== "undefined" ? document.baseURI : undefined} = {}) {
             content = await content;
             content = content==null ? {} : content;
-            currentState ? currentState = await externalState : currentState;
+            currentState ? currentState = this.state(await externalState) : currentState;
             const type = typeof content;
 
             if (type !== "object") {
@@ -86,7 +86,22 @@
     lvHTML.state = state ? state.bind(lvHTML) : function() { 
         throw new Error("LightviewCore not loaded. Ensure lightview-core.js is loaded first.");
     };
+    lvHTML.tags = new Proxy({},{
+        get(_,tagName) {
+            return ({attributes,children,...rest}={}) => {
+                const node = document.createElement(tagName);
+                 if(!attributes && !children && !Object.keys(rest).length) return node;
+                attributes ||= rest ? 
+                    rest :
+                    Object.entries(attributes).reduce((attributes,[key,value]) =>{
+                        attributes[key] = value;
+                        return attributes;
+                    },{});
+                return render({attributes,children},{node})
+            }
+        }
+    });
 
     // Export lvHTML
-    globalThis.Lightview = lvHTML;
+    globalThis.lvHTML = lvHTML;
 })();

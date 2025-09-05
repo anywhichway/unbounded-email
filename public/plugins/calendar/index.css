@@ -7,6 +7,65 @@
     border: 1px solid #e0e0e0;
 }
 
+.calendar-grid-weekly-vertical {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(7, 1fr);
+    gap: 1px;
+    background-color: #e0e0e0;
+    border: 1px solid #e0e0e0;
+}
+
+.calendar-day-row {
+    display: flex;
+    background-color: white;
+    border: 1px solid #e0e0e0;
+    min-height: 120px;
+}
+
+.calendar-day-row.today {
+    background-color: #eaf6ff;
+}
+
+.calendar-day-row.highlighted {
+    background-color: #fff3cd;
+}
+
+.calendar-day-row.today.highlighted {
+    background-color: #eaf6ff;
+}
+
+.calendar-day-row.selected {
+    border: 2px solid #0056b3;
+}
+
+.calendar-day-header-vertical {
+    flex: 0 0 60px;
+    text-align: center;
+    padding: 10px 5px;
+    background-color: #f8f9fa;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #e0e0e0;
+}
+
+.calendar-day {
+    flex: 1;
+    padding: 8px;
+    min-height: 120px;
+    position: relative;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.calendar-day:hover {
+    background-color: #f8f9fa;
+}
+
 .calendar-grid-quarterly {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -25,6 +84,15 @@
 
 .calendar-day {
     background-color: white;
+    padding: 8px;
+    min-height: 120px;
+    position: relative;
+}
+
+/* Override for vertical weekly view */
+.calendar-grid-weekly-vertical .calendar-day {
+    background-color: transparent;
+    border: none;
     padding: 8px;
     min-height: 120px;
     position: relative;
@@ -71,6 +139,41 @@
 
 .calendar-event:hover {
     background-color: #0056b3;
+}
+
+.event-time {
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+.event-description {
+    font-size: 10px;
+    margin-top: 2px;
+    opacity: 0.9;
+}
+
+/* Weekly view inline event details */
+.calendar-grid-weekly-vertical .calendar-event .event-time,
+.calendar-grid-weekly-vertical .calendar-event .event-description {
+    display: inline;
+    margin-top: 0;
+    margin-left: 8px;
+}
+
+.calendar-grid-weekly-vertical .calendar-event .event-time::before {
+    content: "• ";
+}
+
+.calendar-grid-weekly-vertical .calendar-event .event-description::before {
+    content: "• ";
+}
+
+.calendar-grid-weekly-vertical .calendar-event {
+    white-space: normal;
+    padding: 4px 8px;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .no-events {
@@ -229,6 +332,10 @@
 .calendar-day.selected {
     border: 2px solid #0056b3;
     padding: 6px;
+}
+
+.calendar-day-row.selected .calendar-day {
+    border-left: 2px solid #0056b3;
 }
 
 .mini-calendar-day.selected .mini-day-number {

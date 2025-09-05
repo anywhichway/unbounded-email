@@ -24,7 +24,7 @@
         found: new Set(),
         watch() { this.found.clear() },
         
-        async render(content, {replaceEl, shadow, state: currentState, baseURI = document.baseURI} = {}) {
+        async render(content, {node,replaceEl, shadow, state: currentState, baseURI = document.baseURI} = {}) {
             const collectProperties = async (node, render) => {
                 lvDOM.__currentNode__ = node;
                 lvDOM.watch();
@@ -33,7 +33,7 @@
             }
             content = await content;
             content = content==null ? {} : content;
-            currentState ? currentState = await currentState : currentState;
+            currentState ? currentState = this.state(await currentState) : currentState;
             let type = typeof content;
             let render = type === "function" ? content : null;
             let properties = [];
@@ -42,8 +42,6 @@
                 content = await render();
                 type = typeof content;
             }
-            
-            let node;
 
             if (type !== "object") {
                 if(type === "string" && currentState && content.includes('${')) {
@@ -59,7 +57,7 @@
                         node.textContent = await render();
                         return node;
                     }
-                    node.state.watch(node, props, renderer);
+                    node.state?.watch(node, props, renderer);
                 }
             } else if (Array.isArray(content)) {
                 node = Object.assign(document.createDocumentFragment(), {
@@ -69,23 +67,27 @@
                 });
                 node.append(...await Promise.all(content.map(item => lvDOM.render(item, {state: currentState}))));
             } else if (type === "object") {
-                if (content instanceof HTMLElement) {
-                    try {
-                        content = JSON.parse(content.innerText);
-                    } catch(e) {
-                        console.error("lvDOM parse error:", e, content);
+                if (content instanceof HTMLScriptElement) {
+                    if(content.type=="application/json") {
+                        try {
+                            content = JSON.parse(content.innerText);
+                        } catch(e) {
+                            console.error("lvDOM parse error:", e, content);
+                            return;
+                        }
+                    } else {
+                        console.warn("lvDOM cannot render script elements:", content);
                         return;
                     }
                 }
 
-                const tagName = String(content.tagName || "").toLowerCase();
-                node = document.createElement(tagName);
+                if(!node) node = document.createElement(content.tagName);
                 if(currentState) setState(node, currentState);
 
                 let src;
 
                 const attributes = content.attributes || {};
-                for (const [key, value] of Object.entries(attributes)) {
+                for (let [key, value] of Object.entries(attributes)) {
                     let type = typeof value;
                     let render;
                     let properties = [];
@@ -113,6 +115,7 @@
                         if(type === "string" && value.includes('${')) {
                             const f = templateRenderer(value);
                             render = () => f(currentState);
+                            value = await render();
                         }
                         let processedValue = type === "boolean" ? (value ? key : "") :
                             (type === "object" && value ? JSON.stringify(value) : value);
@@ -134,7 +137,7 @@
                                     }
                                     return node;
                                 }
-                                node.state.watch(node, await collectProperties(node, render), renderer);
+                                node.state?.watch(node, await collectProperties(node, render), renderer);
                             }
                             if(key == "src") {
                                 src = processedValue;
@@ -144,8 +147,8 @@
                     }
                 }
 
-                const children = content.children || [];
-                node.append(...await Promise.all(children.map(child => lvDOM.render(child, {state: currentState}))));
+                const children = await Promise.all((content.children || []).map(child => lvDOM.render(child, {state: currentState})))
+                node.append(...children);
 
                 const shadowContent = content.shadowRoot;
                 if (shadowContent) {
@@ -171,7 +174,21 @@
     lvDOM.state = state ? state.bind(lvDOM) : function() { 
         throw new Error("LightviewCore not loaded. Ensure lightview-core.js is loaded first.");
     };
-
-    // Export lvDOM
-    globalThis.Lightview = lvDOM;
+    lvDOM.tags = new Proxy({},{
+        get(_,tagName) {
+            return ({children,attributes,...rest}={}) => {
+                const node = document.createElement(tagName);
+                if(!attributes && !children && !Object.keys(rest).length) return node;
+                attributes ||= rest ? 
+                    rest :
+                    Object.entries(attributes).reduce((attributes,[key,value]) =>{
+                        attributes[key] = value;
+                        return attributes;
+                    },{});
+                lvDOM.__currentNode__ = node;
+                return render({attributes,children},{node})
+            }
+        }
+    });
+    globalThis.lvDOM = lvDOM;
 })();

@@ -1,4 +1,6 @@
 <head>
+    <script src="./assets/js/lightview-core.js"></script>
+    <script src="./assets/js/lightview-dom.js"></script>
     <script src="./assets/js/lightview.js"></script>
     <script type="application/json" id="json-example">
         {
@@ -25,7 +27,8 @@
 <body>
     <div id="app"></div>
     <script>
-        lvDOM.render({
+        const lightview = Lightview("dom");
+        lightview.render({
             tagName:"div",
             shadowRoot:[
                 "hello world!",
@@ -34,33 +37,50 @@
                     attributes:{src:'./lv-test.html'}
                 }
             ]},{replaceEl:document.currentScript});
-    </script>
-    <script>
-        const userState = lvDOM.state({name:"Bob",fontSize:20});
-        lvDOM.render(document.getElementById("json-example"),{replaceEl:document.currentScript,state:userState});
+        </script>
+        <script>
+        const {state} = lightview;
+        const userState = state({name:"Bob",fontSize:20});
+        lightview.render(document.getElementById("json-example"),{replaceEl:document.currentScript,state:userState});
         setTimeout(() => {
             userState.name = "Alice";
             userState.fontSize = 10;
         }, 2000);
     </script>
     <script>
-        lvHTML.render(document.getElementById("json-example"),{state:{name:"Joe",fontSize:30},nonce:"abc123"}).then(html => {
-            const fragment = new DOMParser().parseFromString(html, "text/html");
-            const scripts = fragment.body.querySelectorAll("script");
-            document.body.append(...fragment.body.childNodes);
-            scripts.forEach(script => {
-                const newScript = document.createElement("script");
-                newScript.innerText = script.innerText;
-                for (const attr of script.attributes) {
-                    newScript.setAttribute(attr.name, attr.value);
-                }
-                script.replaceWith(newScript);
-            })
-        })
+        lightview.render(document.getElementById("json-example"),{state:{name:"Joe",fontSize:30},nonce:"abc123"}).then(node => {
+        const scripts = node.querySelectorAll("script");
+        document.body.append(node);
+        scripts.forEach(script => {
+            const newScript = document.createElement("script");
+            newScript.innerText = script.innerText;
+            for (const attr of script.attributes) {
+                newScript.setAttribute(attr.name, attr.value);
+            }
+            script.replaceWith(newScript);
+        });
+    });
     </script>
-
+    <script>
+        (async () => {
+            const {tags, state} = lightview;
+            const {div} = tags;
+            const counter = state({count:0})
+            const app = await div({style:{fontSize: "20px",color:"green "}, children: [
+                () => `Count: ${counter.count}`,
+                {
+                    tagName:"button",
+                    attributes: {
+                        style: {marginLeft: "10px"},
+                        onclick: () => {counter.count++;}
+                    },
+                    children: ["Increment"]
+                }]});
+            document.getElementById("app").append(app);
+        })();
+    </script>
     <script type="module">
-        const {state,render} = lvDOM;
+        const {render} = lightview;
         async function Counter(state) {
             return render(
                 {
@@ -84,6 +104,5 @@
         }
         document.getElementById("app").append(await Counter(state({count:0})));
     </script>
-
 </body>
 </html>
