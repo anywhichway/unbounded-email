@@ -2,6 +2,7 @@
     // Shared state management function
     let localWatchAsString = "";
     function state(data = {}) {
+        const lv = this;
         // Use WeakMap for automatic cleanup when nodes are garbage collected
         const nodeWatchers = new WeakMap();
         const propWatchers = new Map(); // property -> Set of {node, fn} pairs
@@ -60,12 +61,15 @@
         }
 
         localWatchAsString ||= locals.watch+"";
-        if(data.watch+""===localWatchAsString) {
+        if(!data || typeof data!=="object" || data.watch+""===localWatchAsString) {
             return data;
         }
 
-        const lv = this;
-
+        if(Array.isArray(data)) {
+            for(let i=0; i<data.length && data[i]?.watch!==localWatchAsString; i++) {
+                data[i] = lv.state(data[i]);
+            }
+        }
         const state = new Proxy(data, {
             set(target, prop, value) {
                 target[prop] = value;
@@ -77,11 +81,16 @@
                 const local = locals[prop];
                 if(local) return local;
                 if (typeof prop === "symbol") return Reflect.get(target, prop);
+                lv.__lastPropertyAccessed__ = prop;
                 lv.found.add(prop);
                 if (lv.__currentNode__ && !lv.__currentNode__.state) {
                     setState(lv.__currentNode__,state);
                 }
-                return target[prop];
+                let value = target[prop];
+                if(value?.watch!==localWatchAsString) {
+                    value = target[prop] = lv.state(value);
+                }
+                return value;
             },
             deleteProperty(target, prop) {
                 Reflect.deleteProperty(target, prop);

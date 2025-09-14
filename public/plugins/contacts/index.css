@@ -1,82 +1,547 @@
-/* Contacts plugin styles */
-.contacts-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
+/* Contact card styling */
 .contact-item {
     display: flex;
     align-items: center;
-    padding: 15px;
-    background-color: white;
+    padding: 8px;
+    margin-bottom: 8px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
     border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.2s ease;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
 }
 
 .contact-item:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: #f5f5f5;
+    border-color: #007acc;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 122, 204, 0.15);
 }
 
-.contact-avatar {
-    width: 48px;
-    height: 48px;
+.contact-item.starred {
+    border-left: 4px solid #ffd700;
+}
+
+.contact-item.scheduled {
+    border-right: 4px solid #007acc;
+}
+
+.contact-item.starred.scheduled {
+    border-left: 4px solid #ffd700;
+    border-right: 4px solid #007acc;
+}
+
+/* Star icon styling */
+.star-icon {
+    position: absolute;
+    top: 8px;
+    right: 44px;
+    cursor: pointer;
     border-radius: 50%;
-    background-color: #007bff;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.star-icon:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.star-icon i {
+    font-size: 16px;
+    color: #999;
+    transition: color 0.2s ease;
+}
+
+.star-icon i.starred {
+    color: #ffd700;
+}
+
+.star-icon:hover i {
+    color: #ffd700;
+}
+
+/* Edit icon styling */
+.edit-icon {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.edit-icon:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.edit-icon i {
+    font-size: 14px;
+    color: #999;
+    transition: color 0.2s ease;
+}
+
+.edit-icon:hover i {
+    color: #007acc;
+}
+
+/* Calendar icon styling */
+.calendar-icon {
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.calendar-icon:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.calendar-icon i {
+    font-size: 16px;
+    color: #999;
+    transition: color 0.2s ease;
+}
+
+.calendar-icon:hover i {
+    color: #007acc;
+}
+
+/* Schedule container styling */
+.schedule-container {
+    position: absolute;
+    top: 8px;
+    right: 80px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px; /* Match the star icon height for alignment */
+}
+
+/* Schedule date display */
+.schedule-date {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #007acc;
+    background: rgba(0, 122, 204, 0.1);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid rgba(0, 122, 204, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    height: 20px; /* Fixed height for alignment */
+    box-sizing: border-box;
+}
+
+.schedule-date:hover {
+    background: rgba(0, 122, 204, 0.15);
+    border-color: rgba(0, 122, 204, 0.3);
+}
+
+.date-text {
+    flex: 1;
+}
+
+.clear-date-btn {
+    background: none;
+    border: none;
+    color: #007acc;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.clear-date-btn:hover {
+    background: rgba(0, 122, 204, 0.2);
+    color: #005a9c;
+}
+
+/* Schedule input container */
+.schedule-input-container {
+    display: flex;
+    align-items: center;
+    height: 28px; /* Match container height */
+}
+
+.schedule-input {
+    padding: 4px 8px;
+    border: 1px solid #007acc;
+    border-radius: 4px;
+    font-size: 11px;
+    background: white;
+    color: #333;
+    min-width: 140px;
+    height: 24px; /* Fixed height for consistency */
+    box-sizing: border-box;
+}
+
+.schedule-input:focus {
+    outline: none;
+    border-color: #005a9c;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+/* Avatar styling */
+.contact-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #007acc;
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
-    font-weight: 600;
-    margin-right: 15px;
+    font-weight: bold;
+    font-size: 16px;
+    margin-right: 12px;
     flex-shrink: 0;
 }
 
+/* Contact info styling */
 .contact-info {
     flex: 1;
     min-width: 0;
+    padding-bottom: 24px; /* Make room for the bottom row */
 }
 
 .contact-name {
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
     margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: baseline;
+}
+
+.contact-name-text {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    flex-shrink: 0;
+}
+
+.contact-details {
+    font-size: 12px;
+    color: #666;
+    margin-left: 8px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .contact-email {
-    font-size: 14px;
+    font-size: 12px;
     color: #666;
     margin-bottom: 2px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.contact-address {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 2px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Contact bottom row styling */
+.contact-bottom-row {
+    position: absolute;
+    bottom: 8px;
+    left: 60px; /* Start from right edge of avatar (40px avatar + 12px margin + 8px padding) */
+    right: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
 }
 
 .contact-type {
-    font-size: 12px;
+    font-size: 11px;
     color: #999;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-weight: 500;
+    flex-shrink: 0;
 }
 
+.contact-categories {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 1;
+}
+
+.category-tag {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: #666;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 122, 204, 0.2);
+}
+
+.category-tag i {
+    font-size: 9px;
+    color: #007acc;
+}
+
+.category-name {
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.tag-delete-btn {
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 2px;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.tag-delete-btn:hover {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+/* Tag input styling */
+.tag-input {
+    border: 1px solid #ccc;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 10px;
+    width: 80px;
+    margin-left: 4px;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.tag-input:focus {
+    border-color: #007acc;
+    width: 120px;
+}
+
+.tag-input::placeholder {
+    color: #999;
+    font-style: italic;
+}
+
+/* Tag suggestions styling */
+.tag-suggestions {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.tag-suggestion {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.tag-suggestion:hover,
+.tag-suggestion.selected {
+    background-color: #f0f8ff;
+}
+
+.tag-suggestion i {
+    color: #007acc;
+    font-size: 12px;
+}
+
+.tag-suggestion:last-child {
+    border-bottom: none;
+}
+
+/* Contacts list container */
+.contacts-list {
+    padding: 16px;
+}
+
+/* Empty state styling */
 .no-contacts {
     text-align: center;
     padding: 40px 20px;
     color: #666;
-    font-size: 16px;
+    font-style: italic;
 }
 
-@media (max-width: 600px) {
-    .contact-item {
-        padding: 12px;
+/* Folder navigation styling */
+
+.folder-item.active {
+    background: #007acc;
+    color: white;
+}
+
+.folder-item.subfolder {
+    padding-left: 28px;
+    font-size: 13px;
+}
+
+.folder-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.folder-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.folder-count {
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.1);
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+}
+
+.folder-item.active .folder-count {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .plugin-container {
+        flex-direction: column;
+    }
+    
+    .plugin-sidebar {
+        width: 100%;
+        max-height: 200px;
+        overflow-y: auto;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
     }
     
     .contact-avatar {
-        width: 40px;
-        height: 40px;
-        font-size: 16px;
+        width: 35px;
+        height: 35px;
+        font-size: 14px;
+        margin-right: 10px;
+    }
+    
+    .contact-info {
+        padding-right: 100px; /* Adjust for schedule container on smaller screens */
+    }
+    
+    .contact-name-text {
+        font-size: 13px;
+    }
+    
+    .contact-email {
+        font-size: 11px;
+    }
+    
+    .contact-details {
+        font-size: 11px;
+    }
+    
+    .contact-address {
+        font-size: 11px;
+    }
+    
+    .contact-type {
+        font-size: 10px;
+    }
+    
+    .schedule-container {
+        right: 36px; /* Adjust position for smaller screens */
+        gap: 3px;
+        height: 24px; /* Adjust for mobile */
+    }
+    
+    .schedule-date {
+        font-size: 10px;
+        padding: 3px 6px;
+    }
+    
+    .schedule-input {
+        font-size: 10px;
+        padding: 3px 6px;
+        min-width: 120px;
+        height: 20px; /* Adjust for mobile */
+    }
+    
+    .clear-date-btn {
+        width: 14px;
+        height: 14px;
+        font-size: 12px;
+    }
+    
+    .calendar-icon {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .calendar-icon i {
+        font-size: 14px;
+    }
+    
+    .star-icon {
+        width: 24px;
+        height: 24px;
+        top: 6px;
+        right: 6px;
+    }
+    
+    .star-icon i {
+        font-size: 14px;
     }
 }

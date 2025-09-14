@@ -24,11 +24,13 @@
         found: new Set(),
         watch() { this.found.clear() },
         
-        async render(content, {node,replaceEl, shadow, state: currentState, baseURI = document.baseURI} = {}) {
+        async render(content, {node,parentNode,replaceEl, shadow, state: currentState, baseURI = document.baseURI} = {}) {
             const collectProperties = async (node, render) => {
+                const prevNode = lvDOM.__currentNode__;
                 lvDOM.__currentNode__ = node;
                 lvDOM.watch();
                 await render();
+                lvDOM.__currentNode__ = prevNode;
                 return [...lvDOM.found];
             }
             content = await content;
@@ -60,12 +62,24 @@
                     node.state?.watch(node, props, renderer);
                 }
             } else if (Array.isArray(content)) {
-                node = Object.assign(document.createDocumentFragment(), {
-                    append(...args) {
-                        DocumentFragment.prototype.append.call(this, ...args);
+                node = document.createDocumentFragment();
+                const renderer = async () => {
+                    while(node.firstChild) {
+                        node.firstChild.remove();
                     }
-                });
-                node.append(...await Promise.all(content.map(item => lvDOM.render(item, {state: currentState}))));
+                    node.append(...await Promise.all(content.map(item => lvDOM.render(item, {state: currentState}))));
+                    return [...node.childNodes]
+                }
+                if(currentState) {
+                    setState(node, currentState);
+                }
+                if(lvDOM.__lastPropertyAccessed__) {
+                    node.state?.watch(node, [lvDOM.__lastPropertyAccessed__], renderer);
+                }
+                if (render) {
+                    node.state?.watch(node, await collectProperties(node, render), renderer);
+                }
+                return await renderer();
             } else if (type === "object") {
                 if (content instanceof HTMLScriptElement) {
                     if(content.type=="application/json") {
@@ -79,10 +93,19 @@
                         console.warn("lvDOM cannot render script elements:", content);
                         return;
                     }
+                } else if(content instanceof HTMLElement) {
+                    return content;
                 }
 
-                if(!node) node = document.createElement(content.tagName);
-                if(currentState) setState(node, currentState);
+                if(!node) {
+                    node = document.createElement(content.tagName);
+                    if(currentState) setState(node, currentState);
+                    if(render) {
+                        node.state?.watch(node, await collectProperties(node, render), render);
+                    }
+                } else if(currentState) {
+                    setState(node, currentState);
+                }
 
                 let src;
 
@@ -146,9 +169,23 @@
                         }
                     }
                 }
-
-                const children = await Promise.all((content.children || []).map(child => lvDOM.render(child, {state: currentState})))
-                node.append(...children);
+                if(content.children) {
+                    node.append(...await lvDOM.render(content.children, {state: currentState,parentNode: node}));
+                    if(render) {
+                        const renderer = async () => {
+                            node.innerHTML = "";
+                            node.append(...await lvDOM.render(content.children, {state: currentState,parentNode: node}));
+                        }
+                        node.state?.watch(node, await collectProperties(node, render), renderer);
+                    }
+                    if(typeof content.children === "function") {
+                        const renderer = async () => {
+                            node.innerHTML = "";
+                            node.append(...await lvDOM.render(content.children, {state: parentNode?.state}));
+                        }
+                        parentNode?.state?.watch(node, await collectProperties(node, render), renderer);
+                    }
+                }
 
                 const shadowContent = content.shadowRoot;
                 if (shadowContent) {

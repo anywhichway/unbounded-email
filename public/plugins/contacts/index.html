@@ -5,22 +5,22 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
         <link rel="stylesheet" href="../index.css">
         <link rel="stylesheet" href="./index.css">
-        <script src="../../assets/js/lightview-core.js"></script>
-        <script src="../../assets/js/lightview-dom.js"></script>
-        <script src="../../assets/js/lightview-href.js"></script>
         <script src="../../assets/js/lightview-iframe.js"></script>
-        <script src="../../assets/js/lightview.js"></script>
+        <script src="../../assets/js/baux-browser.js"></script>
+        <script>const {render, state} = Baux("browser");</script>
         <script src="./index.js"></script>
+        <script src="./contact.js"></script>
+        <script src="./contacts.js"></script>
+        <script src="./folder-item.js"></script>
     </head>
     <body>
          <script type="module" id="init">
-            const {render} = Lightview;
             const {local} = lvIFrame;
-                        const {user, ui, navigate} = await local(lvIFrame.import("./"));
+            const {user, ui, navigate} = await local(lvIFrame.import("./"));
             
-            const contacts = await getContactsFromAccounts(user);
+            const contacts = getContactsFromAccounts(user);
             
-            // Get user accounts from user structure based on JSON format
+            // Get user accounts from user structure
             const userAccounts = user.accounts || {};
             const accountEmails = Object.keys(userAccounts);
 
@@ -28,403 +28,75 @@
             const tags = [...new Set(contacts.flatMap(c => c.tags || []))];
             const tagIcons = ui.tagIcons || {};
 
-            // State for filtering
-            let filteredContacts = contacts;
-            let currentAccount = null;
-            let currentTag = null;
-            window.selectedFolderId = 'folder-All Contacts';
-
-            // Create folder structure with subfolders
-            const folders = [
-                { 
-                    name: "All Contacts", 
-                    icon: "fas fa-users", 
-                    count: contacts.length,
-                    subfolders: accountEmails.map(email => ({
-                        email: email,
-                        name: email,
-                        icon: "fas fa-envelope",
-                        count: contacts.filter(c => c.sourceAccount === email).length
-                    }))
+            // Reactive state for filtering and UI
+            const appState = state({
+                contacts: contacts,
+                tagIcons: tagIcons,
+                user: user,
+                currentAccount: null,
+                currentTag: null,
+                currentFolder: null,
+                selectedFolderId: 'folder-All Contacts',
+                editingContact: null,
+                get filteredContacts() {
+                    let filtered = this.contacts;
+                    
+                    // First filter by account if one is selected
+                    if (this.currentAccount) {
+                        filtered = filtered.filter(c => c.sourceAccount === this.currentAccount);
+                    }
+                    
+                    // Then apply additional filters based on current selection
+                    if (this.currentTag) {
+                        filtered = filtered.filter(c => c.tags && c.tags.includes(this.currentTag));
+                    } else if (this.currentFolder) {
+                        const lowerCaseFolder = this.currentFolder.toLowerCase();
+                        switch (lowerCaseFolder) {
+                            case 'starred':
+                                filtered = filtered.filter(c => c.starred);
+                                break;
+                            case 'frequently contacted':
+                                filtered = filtered.filter(c => c.frequentlyContacted);
+                                break;
+                            case 'scheduled':
+                                filtered = filtered.filter(c => c.scheduled);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    
+                    return filtered;
                 },
-                { 
-                    name: "Categories", 
-                    icon: "fas fa-tags",
-                    subfolders: tags.map(tag => ({
-                        name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
-                        originalTag: tag,
-                        icon: tagIcons[tag] || tagIcons.default,
-                        count: contacts.filter(c => c.tags && c.tags.includes(tag)).length
-                    }))
-                },
-                { name: "Starred", icon: "fas fa-star", count: contacts.filter(c => c.starred).length },
-                { name: "Frequently Contacted", icon: "fas fa-history", count: contacts.filter(c => c.frequentlyContacted).length },
-                { name: "Scheduled", icon: "fas fa-clock", count: contacts.filter(c => c.scheduled).length },
-            ];
-
-            window.filterContactsByAccount = (accountEmail) => {
-                if (accountEmail) {
-                    filteredContacts = contacts.filter(c => c.sourceAccount === accountEmail);
-                } else {
-                    filteredContacts = contacts;
-                }
-                currentAccount = accountEmail;
-                currentTag = null;
-                window.selectedFolderId = accountEmail ? `account-${accountEmail.replace('@', '-at-')}` : 'folder-All Contacts';
-                renderContactList();
-            }
-
-            window.filterContactsByTag = (tagName) => {
-                currentTag = tagName;
-                if (currentAccount) {
-                    filteredContacts = contacts.filter(c => c.sourceAccount === currentAccount && c.tags && c.tags.includes(tagName));
-                } else {
-                    filteredContacts = contacts.filter(c => c.tags && c.tags.includes(tagName));
-                }
-                window.selectedFolderId = `category-${tagName}`;
-                renderContactList();
-            }
-
-            window.filterContactsByFolder = (folderName) => {
-                currentTag = null;
-                const lowerCaseFolderName = folderName.toLowerCase();
-                
-                switch (lowerCaseFolderName) {
-                    case 'all contacts':
-                        // When clicking on All Contacts, show all contacts and reset account filter
-                        filteredContacts = contacts;
-                        currentAccount = null;
-                        break;
-                    case 'starred':
-                        if (currentAccount) {
-                            filteredContacts = contacts.filter(c => c.sourceAccount === currentAccount && c.starred);
-                        } else {
-                            filteredContacts = contacts.filter(c => c.starred);
+                selectFolder(folderType, value) {
+                    if (folderType === 'account') {
+                        appState.currentAccount = value;
+                        appState.currentTag = null;
+                        appState.currentFolder = null;
+                        appState.selectedFolderId = value ? `account-${value.replace('@', '-at-')}` : 'folder-All Contacts';
+                    } else if (folderType === 'tag') {
+                        appState.currentTag = value;
+                        appState.currentFolder = null;
+                        appState.selectedFolderId = `category-${value}`;
+                    } else if (folderType === 'folder') {
+                        appState.currentFolder = value;
+                        appState.currentTag = null;
+                        if (value === 'All Contacts') {
+                            appState.currentAccount = null;
                         }
-                        break;
-                    case 'frequently contacted':
-                        if (currentAccount) {
-                            filteredContacts = contacts.filter(c => c.sourceAccount === currentAccount && c.frequentlyContacted);
-                        } else {
-                            filteredContacts = contacts.filter(c => c.frequentlyContacted);
-                        }
-                        break;
-                    case 'scheduled':
-                        if (currentAccount) {
-                            filteredContacts = contacts.filter(c => c.sourceAccount === currentAccount && c.scheduled);
-                        } else {
-                            filteredContacts = contacts.filter(c => c.scheduled);
-                        }
-                        break;
-                    default:
-                        if (currentAccount) {
-                            filteredContacts = contacts.filter(c => c.sourceAccount === currentAccount);
-                        } else {
-                            filteredContacts = contacts;
-                        }
-                        break;
-                }
-                window.selectedFolderId = `folder-${folderName}`;
-                renderContactList();
-            }
-
-            // Function to render contact list based on current filter
-            const renderContactList = () => {
-                const filteredContactItems = filteredContacts.length > 0
-                    ? filteredContacts.map(contact => ({
-                        "tagName": "div",
-                        "attributes": {
-                            "class": `contact-item ${contact.starred ? 'starred' : ''}`
-                        },
-                        "children": [
-                            {
-                                "tagName": "div",
-                                "attributes": {
-                                    "class": "contact-avatar"
-                                },
-                                "children": [(contact.screenName || contact.email).charAt(0).toUpperCase()]
-                            },
-                            {
-                                "tagName": "div",
-                                "attributes": {
-                                    "class": "contact-info"
-                                },
-                                "children": [
-                                    {
-                                        "tagName": "div",
-                                        "attributes": {
-                                            "class": "contact-name"
-                                        },
-                                        "children": [contact.screenName || contact.email]
-                                    },
-                                    {
-                                        "tagName": "div",
-                                        "attributes": {
-                                            "class": "contact-email"
-                                        },
-                                        "children": [contact.email]
-                                    },
-                                    {
-                                        "tagName": "div",
-                                        "attributes": {
-                                            "class": "contact-type"
-                                        },
-                                        "children": [contact.accountType]
-                                    }
-                                ]
-                            }
-                        ]
-                    }))
-                    : [{
-                        "tagName": "div",
-                        "attributes": {
-                            "class": "no-contacts"
-                        },
-                        "children": ["No contacts found"]
-                    }];
-
-                // Update contact count based on filtered contacts
-                const contactCountEl = document.querySelector('.plugin-count');
-                if (contactCountEl) {
-                    contactCountEl.textContent = `${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}`;
-                }
-                
-                // Update header title
-                const headerTitleEl = document.querySelector('.plugin-header h1');
-                if (headerTitleEl) {
-                    let titleParts = ['Contacts'];
-                    if (currentAccount) {
-                        titleParts.push(' - ');
-                        titleParts.push({
-                            tagName: 'a',
-                            attributes: {
-                                href: '#',
-                                onclick: `event.preventDefault(); navigate('../account/index.html?account=${encodeURIComponent(currentAccount)}', window.location.href)`
-                            },
-                            children: [currentAccount]
-                        });
+                        appState.selectedFolderId = `folder-${value}`;
                     }
-                    // Clear existing content and render new title
-                    headerTitleEl.innerHTML = '';
-                    if (titleParts.length === 1) {
-                        headerTitleEl.textContent = titleParts[0];
-                    } else {
-                        // Render the title with link
-                        const titleText = document.createTextNode(titleParts[0] + ' ');
-                        const dashText = document.createTextNode(titleParts[1]);
-                        const linkEl = document.createElement('a');
-                        linkEl.href = '#';
-                        linkEl.onclick = (e) => {
-                            e.preventDefault();
-                            navigate('../account/index.html?account=' + encodeURIComponent(currentAccount), window.location.href);
-                        };
-                        linkEl.textContent = titleParts[2].children[0];
-                        headerTitleEl.appendChild(titleText);
-                        headerTitleEl.appendChild(dashText);
-                        headerTitleEl.appendChild(linkEl);
-                    }
-                }
-                
-                // Update visual selection
-                document.querySelectorAll('.folder-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                if (window.selectedFolderId) {
-                    const selectedItem = document.getElementById(window.selectedFolderId);
-                    if (selectedItem) {
-                        selectedItem.classList.add('active');
-                    }
-                }
-                
-                // Also keep account selection active if we're filtering within an account
-                if (currentAccount) {
-                    const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
-                    if (accountItem) {
-                        accountItem.classList.add('active');
-                    }
-                }
-                
-                // Update folder counts based on current account selection
-                document.querySelectorAll('.folder-item').forEach(item => {
-                    const countEl = item.querySelector('.folder-count');
-                    if (countEl) {
-                        const accountEmail = item.getAttribute('data-account');
-                        const folderName = item.getAttribute('data-folder');
-                        const categoryName = item.getAttribute('data-category');
-                        
-                        let count = 0;
-                        if (accountEmail && accountEmail !== "") {
-                            // Account contacts
-                            count = contacts.filter(c => c.sourceAccount === accountEmail).length;
-                        } else if (folderName && folderName !== "") {
-                            // Top-level folder
-                            if (folderName === 'Starred') {
-                                if (currentAccount) {
-                                    count = contacts.filter(c => c.sourceAccount === currentAccount && c.starred).length;
-                                } else {
-                                    count = contacts.filter(c => c.starred).length;
-                                }
-                            } else if (folderName === 'Frequently Contacted') {
-                                if (currentAccount) {
-                                    count = contacts.filter(c => c.sourceAccount === currentAccount && c.frequentlyContacted).length;
-                                } else {
-                                    count = contacts.filter(c => c.frequentlyContacted).length;
-                                }
-                            } else if (folderName === 'Scheduled') {
-                                if (currentAccount) {
-                                    count = contacts.filter(c => c.sourceAccount === currentAccount && c.scheduled).length;
-                                } else {
-                                    count = contacts.filter(c => c.scheduled).length;
-                                }
-                            } else if (folderName === 'All Contacts') {
-                                if (currentAccount) {
-                                    count = contacts.filter(c => c.sourceAccount === currentAccount).length;
-                                } else {
-                                    count = contacts.length;
-                                }
-                            }
-                        } else if (categoryName) {
-                            // Category
-                            if (currentAccount) {
-                                count = contacts.filter(c => c.sourceAccount === currentAccount && c.tags && c.tags.includes(categoryName)).length;
-                            } else {
-                                count = contacts.filter(c => c.tags && c.tags.includes(categoryName)).length;
-                            }
-                        }
-                        countEl.textContent = count.toString();
-                    }
-                });
-                
-                // Update contact list
-                const contactListEl = document.querySelector('.contacts-list');
-                if (contactListEl) {
-                    render({
-                        "tagName": "div",
-                        "attributes": {
-                            "class": "contacts-list"
-                        },
-                        "children": filteredContactItems
-                    }, {replaceEl: contactListEl});
-                }
-            };
-
-            const folderItems = [];
-            folders.forEach(folder => {
-                folderItems.push(createFolderItem(folder));
-                
-                if (folder.subfolders && folder.subfolders.length > 0) {
-                    folder.subfolders.forEach(subfolder => {
-                        if (folder.name === "All Contacts") {
-                            folderItems.push(createFolderItem(subfolder, true, subfolder.email));
-                        } else if (folder.name === "Categories") {
-                            folderItems.push(createFolderItem(subfolder, true, null, subfolder.originalTag));
-                        }
-                    });
                 }
             });
 
-            // Create contact items
-            const contactItems = filteredContacts.map(contact => ({
-                    "tagName": "div",
-                    "attributes": {
-                        "class": "contact-item"
-                    },
-                    "children": [
-                        {
-                            "tagName": "div",
-                            "attributes": {
-                                "class": "contact-avatar"
-                            },
-                            "children": [(contact.screenName || contact.email).charAt(0).toUpperCase()]
-                        },
-                        {
-                            "tagName": "div",
-                            "attributes": {
-                                "class": "contact-info"
-                            },
-                            "children": [
-                                {
-                                    "tagName": "div",
-                                    "attributes": {
-                                        "class": "contact-name"
-                                    },
-                                    "children": [contact.screenName || contact.email]
-                                },
-                                {
-                                    "tagName": "div",
-                                    "attributes": {
-                                        "class": "contact-email"
-                                    },
-                                    "children": [contact.email]
-                                },
-                                {
-                                    "tagName": "div",
-                                }
-                            ]
-                        }
-                    ]
-                }));
-            
-            render({
-                "tagName": "div",
-                "attributes": {
-                    "class": "plugin-wrapper"
-                },
-                "children": [
-                    {
-                        "tagName": "div",
-                        "attributes": {
-                            "class": "plugin-header"
-                        },
-                        "children": [
-                            {
-                                "tagName": "h1",
-                                "children": ["Contacts"]
-                            },
-                            {
-                                "tagName": "span",
-                                "attributes": {
-                                    "class": "plugin-count"
-                                },
-                                "children": [`${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}`]
-                            }
-                        ]
-                    },
-                    {
-                        "tagName": "div",
-                        "attributes": {
-                            "class": "plugin-container"
-                        },
-                        "children": [
-                            {
-                                "tagName": "div",
-                                "attributes": {
-                                    "class": "plugin-sidebar"
-                                },
-                                "children": folderItems
-                            },
-                            {
-                                "tagName": "div",
-                                "attributes": {
-                                    "class": "plugin-main"
-                                },
-                                "children": [
-                                    {
-                                        "tagName": "div",
-                                        "attributes": {
-                                            "class": "contacts-list"
-                                        },
-                                        "children": contactItems
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }, {replaceEl: document.getElementById("init")});
-            
-            // Apply initial visual selection and count updates
-            renderContactList();
+            // Prepare folder data for dynamic generation
+            const folderData = {
+                accountEmails,
+                tags: [],
+                tagIcons: {}
+            };
+
+            document.getElementById("init").replaceWith(await Contacts(appState, folderData))
         </script>
     </body>
 </html>

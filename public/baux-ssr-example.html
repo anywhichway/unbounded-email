@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baux SSR Example</title>
+    <script src="./assets/js/baux-browser.js"></script>
+    <script>
+        const baux = Baux();
+        baux.debug = true;
+    </script>
+</head>
+<body>
+    <h1>Baux Server-Side Rendering Example</h1>
+
+    
+    <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+        <h3>How Modes Work in Baux Server:</h3>
+        <ol>
+            <li><strong>ssr-static:</strong> Server generates HTML without hydration script (for static content only)</li>
+            <li><strong>ssr-hydrate:</strong> Server generates HTML with hydration script for client-side interactivity</li>
+        </ol>
+        <p><strong>Note:</strong> The server version of Baux is optimized for server-side rendering and supports only these two modes. For client-side rendering, use baux-browser.js library.</p>
+    </div>
+
+    <!-- Server-rendered content will be inserted here -->
+    <div id="ssr-content">
+        <!-- This content is generated server-side -->
+    </div>
+
+    <script>
+        // Simulate server-side rendering
+        async function serverSideRender() {
+            // dummy fetch
+            async function fetch(url) {
+                const {Baux} = await import('./assets/js/baux-server.js');
+                const baux = Baux();
+
+                // Function for client-side interaction
+                function incrementCount() {
+                    debugger;
+                    const counter = baux.state.get("counter");
+                    counter.count++;
+                }
+
+                // Define the component structure
+                const componentData = {
+                    tagName: "div",
+                    attributes: {
+                        style: "border: 1px solid #ccc; padding: 20px; margin: 10px 0;",
+                        "data-component": "counter"
+                    },
+                    children: [
+                        {
+                            tagName: "h2",
+                            children: ["Server-Side Rendered Counter"]
+                        },
+                        {
+                            tagName: "p",
+                            children: ["Current count: ${count}"]
+                        },
+                        {
+                            tagName: "button",
+                            attributes: {
+                                style: "padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;",
+                                onclick: incrementCount
+                            },
+                            children: ["Increment"]
+                        }
+                    ]
+                };
+
+                // Initial state
+                const initialState = baux.state({ count: 5 });
+                baux.state.register("counter", initialState);
+
+                // Generate HTML string with hydration script
+                const htmlString = await baux.render(componentData, {
+                    state: initialState
+                }, "ssr-hydrate");
+
+                return new Response(htmlString);
+            }
+
+            // Insert the server-rendered HTML
+            const targetEl = document.getElementById('ssr-content');
+            targetEl.innerHTML = await fetch("http://localhost:3000/counter").then(res => res.text());
+            // Execute any scripts that were generated
+            baux.hydrate(targetEl);
+
+        }
+
+        // Initialize the SSR example
+        serverSideRender();
+    </script>
+
+      <div id="ssr-static-content">
+        <!-- This content is generated server-side -->
+    </div>
+
+    <script>
+        // Example of generating HTML string directly (for server-side use, static)
+        async function generateHTMLString() {
+            const {Baux} = await import('./assets/js/baux-server.js');
+            const baux = Baux();
+            const { state } = baux;
+
+            const todoState = state({
+                todos: [
+                    { id: 1, text: "Learn Baux SSR", completed: true },
+                    { id: 2, text: "Build reactive UI", completed: false },
+                    { id: 3, text: "Deploy to server", completed: false }
+                ]
+            });
+
+            const todoComponent = {
+                tagName: "div",
+                attributes: {
+                    style: "max-width: 400px; margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px;"
+                },
+                children: [
+                    {
+                        tagName: "h3",
+                        children: ["Server-Rendered Todo List"]
+                    },
+                    {
+                        tagName: "ul",
+                        attributes: { style: "list-style: none; padding: 0;" },
+                        children() { 
+                            return todoState.todos.map(todo => ({
+                                tagName: "li",
+                                attributes: {
+                                    style: `"padding: 8px 0; border-bottom: 1px solid #eee; text-decoration: ${todo.completed ? 'line-through' : 'none'};"`
+                                },
+                                children: [todo.text]
+                            }))
+                        }
+                    }
+                ]
+            };
+
+            const htmlOutput = await baux.render(todoComponent, {
+                state: todoState
+            }, "ssr-static");
+
+            document.getElementById("ssr-static-content").innerHTML = htmlOutput;
+
+            return htmlOutput;
+        }
+
+        // Generate and log the HTML string
+        generateHTMLString();
+    </script>
+</body>
+</html>

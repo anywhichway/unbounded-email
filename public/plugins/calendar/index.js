@@ -1,110 +1,101 @@
-async function getEventsFromAccounts(userData, displayYear) {
+function getEventsFromAccounts(userData) {
     const events = [];
-    
+
     if (userData && userData.accounts) {
-        const accounts = await lvIFrame.local(userData.accounts);
-        
-        Object.keys(accounts).forEach(accountEmail => {
-            const account = accounts[accountEmail];
-            
-            if (account.calendar && Array.isArray(account.calendar)) {
-                account.calendar.forEach(event => {
-                    events.push({
-                        ...event,
-                        sourceAccount: accountEmail,
-                        accountType: account.type
-                    });
-                });
-            }
+        // Iterate through each account
+        Object.keys(userData.accounts).forEach(accountEmail => {
+            const account = userData.accounts[accountEmail];
 
-            if (account.contacts && Array.isArray(account.contacts)) {
-                account.contacts.forEach(contact => {
-                    if (contact.birthdate) {
-                        const parts = contact.birthdate.split('-');
-                        let birthYear, month, day;
+            // Add events from the account's events array
+            if (account.events && Array.isArray(account.events)) {
+                account.events.forEach(event => {
+                    // Handle the actual data structure with date, startTime, endTime
+                    let startDate, endDate;
 
-                        if (parts.length === 3) { // yyyy-mm-dd
-                            birthYear = parseInt(parts[0], 10);
-                            month = parseInt(parts[1], 10);
-                            day = parseInt(parts[2], 10);
-                        } else if (parts.length === 2) { // mm-dd
-                            month = parseInt(parts[0], 10);
-                            day = parseInt(parts[1], 10);
-                        }
-
-                        if (!isNaN(month) && !isNaN(day)) {
-                            if (!birthYear || displayYear >= birthYear) {
-                                const birthDateForDisplayYear = new Date(displayYear, month - 1, day);
-                                events.push({
-                                    title: `${contact.name || contact.screenName}'s Birthday`,
-                                    date: birthDateForDisplayYear.toISOString().split('T')[0],
-                                    recurring: 'yearly',
-                                    tags: ['#birthday'],
-                                    sourceAccount: accountEmail,
-                                    accountType: account.type
-                                });
-                            }
-                        }
+                    if (event.date && event.startTime) {
+                        // Combine date and startTime
+                        startDate = new Date(`${event.date}T${event.startTime}`);
+                    } else if (event.date) {
+                        // All-day event
+                        startDate = new Date(event.date);
+                    } else {
+                        startDate = new Date();
                     }
+
+                    if (event.date && event.endTime) {
+                        // Combine date and endTime
+                        endDate = new Date(`${event.date}T${event.endTime}`);
+                    } else if (event.date) {
+                        // All-day event - end at end of day
+                        endDate = new Date(event.date);
+                        endDate.setHours(23, 59, 59, 999);
+                    } else {
+                        endDate = new Date();
+                    }
+
+                    const normalizedEvent = {
+                        id: event.id || `${accountEmail}-${Date.now()}-${Math.random()}`,
+                        title: event.title || 'Untitled Event',
+                        description: event.description || '',
+                        startDate: startDate,
+                        endDate: endDate,
+                        allDay: event.allDay || !event.startTime, // If no startTime, it's all-day
+                        location: event.location || '',
+                        attendees: event.attendees || [],
+                        accountType: account.type || 'unknown',
+                        sourceAccount: accountEmail,
+                        color: event.color || account.color || '#3174ad',
+                        tags: event.tags || [],
+                        recurrence: event.recurrence || null,
+                        reminders: event.reminders || []
+                    };
+                    events.push(normalizedEvent);
                 });
             }
         });
     }
-    
-    return events.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    return events;
 }
 
-const createFolderItem = (folder, isSubfolder = false, accountEmail = null, tagName = null) => {
-    const folderItem = {
-        "tagName": "div",
-        "attributes": {
-            "class": isSubfolder ? "folder-item subfolder" : "folder-item"
-        },
-        "children": [
-            {
-                "tagName": "i",
-                "attributes": {
-                    "class": folder.icon || "fas fa-folder"
-                }
-            },
-            {
-                "tagName": "span",
-                "children": [folder.name]
-            },
-            {
-                "tagName": "span",
-                "attributes": {
-                    "class": "folder-count"
-                },
-                "children": [folder.count > 0 ? folder.count.toString() : ""]
-            }
-        ]
-    };
+function getEventsForDate(events, date) {
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
 
-    // Add data attributes for dynamic count updates
-    folderItem.attributes['data-account'] = accountEmail || '';
-    folderItem.attributes['data-folder'] = (folder.name && !tagName) ? folder.name : '';
-    folderItem.attributes['data-category'] = tagName || '';
+    return events.filter(event => {
+        const eventStart = new Date(event.startDate);
+        eventStart.setHours(0, 0, 0, 0);
 
-    // Add ID for visual selection
-    if (isSubfolder && accountEmail) {
-        // Account subfolder
-        folderItem.attributes.id = `account-${accountEmail.replace('@', '-at-')}`;
-    } else if (folder.name && !tagName) {
-        // Top-level folder
-        folderItem.attributes.id = `folder-${folder.name}`;
-    } else if (tagName) {
-        // Category
-        folderItem.attributes.id = `category-${tagName}`;
-    }
+        const eventEnd = new Date(event.endDate);
+        eventEnd.setHours(0, 0, 0, 0);
 
-    if (tagName) {
-        folderItem.attributes.onclick = `filterEventsByTag('${folder.originalTag || tagName}')`;
-    } else if (accountEmail) {
-        folderItem.attributes.onclick = `filterEventsByAccount('${accountEmail}')`;
-    } else {
-        folderItem.attributes.onclick = `filterEventsByFolder('${folder.name}')`;
-    }
-    
-    return folderItem;
+        return targetDate >= eventStart && targetDate <= eventEnd;
+    });
+}
+
+function getEventsForMonth(events, year, month) {
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0);
+
+    return events.filter(event => {
+        const eventStart = new Date(event.startDate);
+        const eventEnd = new Date(event.endDate);
+
+        return eventStart <= endOfMonth && eventEnd >= startOfMonth;
+    });
+}
+
+function getEventsForWeek(events, startDate) {
+    const weekStart = new Date(startDate);
+    weekStart.setDate(startDate.getDate() - startDate.getDay());
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    return events.filter(event => {
+        const eventStart = new Date(event.startDate);
+        const eventEnd = new Date(event.endDate);
+
+        return eventStart <= weekEnd && eventEnd >= weekStart;
+    });
 }

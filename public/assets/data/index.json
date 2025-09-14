@@ -69,7 +69,7 @@
                         "tags": ["#family"]
                     }
                 ],
-                "calendar": [
+                "events": [
                     {
                         "title": "Team Meeting",
                         "date": "2025-09-03",
@@ -94,7 +94,7 @@
                 ]
             },
             "syblackwell@hotmail.com": {
-                "type": "Microsost",
+                "type": "Microsoft",
                 "name": "M",
                 "color": "#28a745",
                                 "folders": ["Inbox", "Drafts", "Scheduled", "Snoozed", "Sent", "Spam", "Trash", "Personal"],
@@ -229,7 +229,7 @@
                         "frequentlyContacted": true
                     }
                 ],
-                "calendar": [
+                "events": [
                     {
                         "title": "Doctor Appointment",
                         "date": "2025-09-10",

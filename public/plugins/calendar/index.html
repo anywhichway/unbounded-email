@@ -1,924 +1,268 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <title>Unbounded: Calendar</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
         <link rel="stylesheet" href="../index.css">
         <link rel="stylesheet" href="./index.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <script src="../../assets/js/lightview-core.js"></script>
-        <script src="../../assets/js/lightview-dom.js"></script>
-        <script src="../../assets/js/lightview-href.js"></script>
         <script src="../../assets/js/lightview-iframe.js"></script>
-        <script src="../../assets/js/lightview.js"></script>
+        <script src="../../assets/js/baux-browser.js"></script>
+        <script>const {render, state} = Baux("browser");</script>
         <script src="./index.js"></script>
+        <script src="./calendar.js"></script>
+        <script src="./events.js"></script>
+        <script src="./folder-item.js"></script>
     </head>
     <body>
-        <div id="app"></div>
          <script type="module" id="init">
-            const {render} = Lightview("dom");
             const {local} = lvIFrame;
-            const {user, ui} = await local(lvIFrame.import("./"));
+            const {user, ui, navigate} = await local(lvIFrame.import("./"));
 
-            let events = [];
-            let filteredEvents = [];
-            let currentFilterType = 'folder';
-            let currentFilterValue = 'All Calendars';
-            let currentDate = new Date();
-            let selectedDate = new Date();
-            let currentTag = null;
-            let currentAccount = null;
-            let currentView = 'monthly'; // 'weekly', 'monthly', 'quarterly'
-            window.selectedFolderId = 'folder-All Calendars';
+            const events = getEventsFromAccounts(user);
 
-            const getHeaderTitle = () => {
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const monthName = currentDate.toLocaleString('default', { month: 'long' });
-                
-                let title = `${monthName} ${year}`;
-                
-                if (currentView === 'weekly') {
-                    const weekStart = new Date(currentDate);
-                    weekStart.setDate(currentDate.getDate() - currentDate.getDay());
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-                    
-                    const startMonth = weekStart.toLocaleString('default', { month: 'short' });
-                    const endMonth = weekEnd.toLocaleString('default', { month: 'short' });
-                    
-                    if (startMonth === endMonth) {
-                        title = `${startMonth} ${weekStart.getDate()}-${weekEnd.getDate()}, ${year}`;
-                    } else {
-                        title = `${startMonth} ${weekStart.getDate()} - ${endMonth} ${weekEnd.getDate()}, ${year}`;
+            // Get user accounts from user structure
+            const userAccounts = user.accounts || {};
+            const accountEmails = Object.keys(userAccounts);
+
+            // Get unique tags from events
+            const tags = [...new Set(events.flatMap(e => e.tags || []))];
+            const tagIcons = ui.tagIcons || {};
+
+            // Reactive state for filtering and UI
+            const appState = state({
+                events: events,
+                tagIcons: tagIcons,
+                currentAccount: null,
+                currentTag: null,
+                currentFolder: null,
+                selectedFolderId: 'folder-All Calendars',
+                currentView: 'monthly',
+                currentDate: new Date(),
+                selectedDate: new Date(),
+                get filteredEvents() {
+                    let filtered = this.events;
+
+                    // First filter by account if one is selected
+                    if (this.currentAccount) {
+                        filtered = filtered.filter(e => e.sourceAccount === this.currentAccount);
                     }
-                } else if (currentView === 'quarterly') {
-                    const quarter = Math.floor(month / 3) + 1;
-                    title = `Q${quarter} ${year}`;
-                }
-                
-                const titleParts = [title];
 
-                if (currentAccount) {
-                    titleParts.push(' - ');
-                    titleParts.push({
-                        tagName: 'a',
-                        attributes: { 
-                            href: '#',
-                            onclick: `event.preventDefault(); lvIFrame.navigate('../account/index.html?account=${encodeURIComponent(currentAccount)}')` 
-                        },
-                        children: [currentAccount]
-                    });
-                }
-                
-                return titleParts;
-            };
-
-            window.switchView = (viewType) => {
-                currentView = viewType;
-                // Update date picker to reflect current view
-                const datePicker = document.querySelector('.date-picker');
-                if (datePicker) {
-                    datePicker.value = currentDate.toISOString().split('T')[0];
-                }
-                renderCalendar();
-            };
-
-            window.navigatePrevious = () => {
-                if (currentView === 'weekly') {
-                    currentDate.setDate(currentDate.getDate() - 7);
-                } else if (currentView === 'monthly') {
-                    currentDate.setMonth(currentDate.getMonth() - 1);
-                } else if (currentView === 'quarterly') {
-                    currentDate.setMonth(currentDate.getMonth() - 3);
-                }
-                renderCalendar();
-            };
-
-            window.navigateNext = () => {
-                if (currentView === 'weekly') {
-                    currentDate.setDate(currentDate.getDate() + 7);
-                } else if (currentView === 'monthly') {
-                    currentDate.setMonth(currentDate.getMonth() + 1);
-                } else if (currentView === 'quarterly') {
-                    currentDate.setMonth(currentDate.getMonth() + 3);
-                }
-                renderCalendar();
-            };
-            
-            const applyFilters = () => {
-                if (currentFilterType === 'account') {
-                    if (currentFilterValue) {
-                        filteredEvents = events.filter(e => e.sourceAccount === currentFilterValue);
-                    } else {
-                        filteredEvents = events;
+                    // Then apply additional filters based on current selection
+                    if (this.currentTag) {
+                        filtered = filtered.filter(e => e.tags && e.tags.includes(this.currentTag));
+                    } else if (this.currentFolder) {
+                        const lowerCaseFolder = this.currentFolder.toLowerCase();
+                        // Add folder-based filtering logic here if needed
                     }
-                } else if (currentFilterType === 'tag') {
-                    if (currentAccount) {
-                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount);
-                    } else {
-                        filteredEvents = events;
-                    }
-                } else if (currentFilterType === 'starred') {
-                    if (currentAccount) {
-                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount && e.starred);
-                    } else {
-                        filteredEvents = events.filter(e => e.starred);
-                    }
-                } else {
-                    if (currentAccount) {
-                        filteredEvents = events.filter(e => e.sourceAccount === currentAccount);
-                    } else {
-                        filteredEvents = events;
-                    }
-                }
-            };
 
-            const createMiniCalendar = (year, month, monthEvents) => {
-                const firstDayOfMonth = new Date(year, month, 1);
-                const lastDayOfMonth = new Date(year, month + 1, 0);
-                const firstDayOfWeek = firstDayOfMonth.getDay();
-                const totalDays = lastDayOfMonth.getDate();
+                    // Filter by current date range based on view
+                    const currentYear = this.currentDate.getFullYear();
+                    const currentMonth = this.currentDate.getMonth();
 
-                const days = [];
-                const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => ({
-                    tagName: 'div',
-                    attributes: { class: 'mini-calendar-day-header' },
-                    children: [day]
-                }));
+                    if (this.currentView === 'monthly') {
+                        const startOfMonth = new Date(currentYear, currentMonth, 1);
+                        const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
-                for (let i = 0; i < firstDayOfWeek; i++) {
-                    days.push({ tagName: 'div', attributes: { class: 'mini-calendar-day empty' } });
-                }
-
-                for (let day = 1; day <= totalDays; day++) {
-                    const date = new Date(year, month, day);
-                    const today = new Date();
-                    const isToday = date.toDateString() === today.toDateString();
-
-                    const isSelected = date.toDateString() === selectedDate.toDateString();
-
-                    const hasEvents = monthEvents.some(event => {
-                        const [,, eventDay] = event.date.split('-');
-                        return parseInt(eventDay) === day;
-                    });
-
-                    days.push({
-                        tagName: 'div',
-                        attributes: { 
-                            class: `mini-calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''} ${isSelected ? 'selected' : ''}`,
-                            onclick: `selectDate('${date.toISOString()}')`
-                        },
-                        children: [
-                            {
-                                tagName: 'div',
-                                attributes: { class: 'mini-day-number' },
-                                children: [day.toString()]
-                            }
-                        ]
-                    });
-                }
-
-                return {
-                    tagName: 'div',
-                    attributes: { class: 'mini-calendar' },
-                    children: [
-                        {
-                            tagName: 'div',
-                            attributes: { class: 'mini-calendar-grid' },
-                            children: [...dayHeaders, ...days]
-                        }
-                    ]
-                };
-            };
-
-            const renderCalendar = async () => {
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const monthName = currentDate.toLocaleString('default', { month: 'long' });
-
-                events = await getEventsFromAccounts(user, year);
-                applyFilters();  // Apply current filters to get filteredEvents
-
-                let days = [];
-                let dayHeaders = [];
-                let gridClass = 'calendar-grid';
-                let currentPeriodEvents = [];
-
-                if (currentView === 'weekly') {
-                    // Weekly view logic
-                    const weekStart = new Date(currentDate);
-                    weekStart.setDate(currentDate.getDate() - currentDate.getDay());
-                    
-                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    gridClass = 'calendar-grid-weekly-vertical';
-
-                    for (let i = 0; i < 7; i++) {
-                        const date = new Date(weekStart);
-                        date.setDate(weekStart.getDate() + i);
-                        const today = new Date();
-                        const isToday = date.toDateString() === today.toDateString();
-
-                        const dayEvents = filteredEvents.filter(event => {
-                            const [yearStr, monthStr, dayStr] = event.date.split('-');
-                            const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                            return eventDate.toDateString() === date.toDateString();
+                        filtered = filtered.filter(event => {
+                            const eventStart = new Date(event.startDate);
+                            const eventEnd = new Date(event.endDate);
+                            return eventStart <= endOfMonth && eventEnd >= startOfMonth;
                         });
+                    } else if (this.currentView === 'weekly') {
+                        const weekStart = new Date(this.currentDate);
+                        weekStart.setDate(this.currentDate.getDate() - this.currentDate.getDay());
+                        weekStart.setHours(0, 0, 0, 0);
 
-                        let isHighlighted = false;
-                        if (currentFilterType === 'tag' && currentTag) {
-                            isHighlighted = dayEvents.some(event => event.tags && event.tags.includes(currentTag));
-                        }
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        weekEnd.setHours(23, 59, 59, 999);
 
-                        const isSelected = date.toDateString() === selectedDate.toDateString();
+                        filtered = filtered.filter(event => {
+                            const eventStart = new Date(event.startDate);
+                            const eventEnd = new Date(event.endDate);
+                            return eventStart <= weekEnd && eventEnd >= weekStart;
+                        });
+                    } else if (this.currentView === 'quarterly') {
+                        const quarter = Math.floor(currentMonth / 3);
+                        const startOfQuarter = new Date(currentYear, quarter * 3, 1);
+                        const endOfQuarter = new Date(currentYear, (quarter + 1) * 3, 0, 23, 59, 59, 999);
 
-                        days.push({
-                            tagName: 'div',
-                            attributes: { 
-                                class: `calendar-day-row ${isToday ? 'today' : ''} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`
-                             },
-                            children: [
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'calendar-day-header-vertical' },
-                                    children: [dayNames[i]]
-                                },
-                                {
-                                    tagName: 'div',
-                                    attributes: { 
-                                        class: 'calendar-day',
-                                        onclick: `selectDate('${date.toISOString()}')`
-                                     },
-                                    children: [
-                                        {
-                                            tagName: 'div',
-                                            attributes: { class: 'day-number' },
-                                            children: [date.getDate().toString()]
-                                        },
-                                        ...dayEvents.map(event => {
-                                            const timeInfo = event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '';
-                                            const eventContent = [
-                                                event.starred ? {
-                                                    tagName: 'i',
-                                                    attributes: { class: 'fas fa-star event-star' }
-                                                } : null,
-                                                event.title,
-                                                timeInfo ? {
-                                                    tagName: 'div',
-                                                    attributes: { class: 'event-time' },
-                                                    children: [timeInfo]
-                                                } : null,
-                                                event.description ? {
-                                                    tagName: 'div',
-                                                    attributes: { class: 'event-description' },
-                                                    children: [event.description]
-                                                } : null
-                                            ].filter(Boolean);
-                                            
-                                            return {
-                                                tagName: 'div',
-                                                attributes: { 
-                                                    class: `calendar-event ${event.starred ? 'starred' : ''}`,
-                                                    style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`
-                                                },
-                                                children: eventContent
-                                            };
-                                        })
-                                    ]
-                                }
-                            ]
+                        filtered = filtered.filter(event => {
+                            const eventStart = new Date(event.startDate);
+                            const eventEnd = new Date(event.endDate);
+                            return eventStart <= endOfQuarter && eventEnd >= startOfQuarter;
                         });
                     }
-                    
-                    currentPeriodEvents = filteredEvents.filter(event => {
-                        const [yearStr, monthStr, dayStr] = event.date.split('-');
-                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                        return eventDate >= weekStart && eventDate <= new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
-                    });
-                    
-                } else if (currentView === 'quarterly') {
-                    // Quarterly view logic
-                    const quarter = Math.floor(month / 3);
-                    const quarterStartMonth = quarter * 3;
-                    
-                    dayHeaders = [];
-                    for (let i = 0; i < 3; i++) {
-                        const monthIndex = quarterStartMonth + i;
-                        const monthDate = new Date(year, monthIndex, 1);
-                        const monthName = monthDate.toLocaleString('default', { month: 'short' });
-                        dayHeaders.push({
+
+                    return filtered;
+                },
+                selectFolder(folderType, value) {
+                    if (folderType === 'account') {
+                        this.currentAccount = value;
+                        this.currentTag = null;
+                        this.currentFolder = null;
+                        this.selectedFolderId = value ? `account-${value.replace('@', '-at-')}` : 'folder-All Calendars';
+                    } else if (folderType === 'tag') {
+                        this.currentTag = value;
+                        this.currentFolder = null;
+                        this.selectedFolderId = `category-${value}`;
+                    } else if (folderType === 'folder') {
+                        this.currentFolder = value;
+                        this.currentTag = null;
+                        if (value === 'All Calendars') {
+                            this.currentAccount = null;
+                        }
+                        this.selectedFolderId = `folder-${value}`;
+                    }
+                },
+                get headerTitle() {
+                    const year = this.currentDate.getFullYear();
+                    const month = this.currentDate.getMonth();
+                    const monthName = this.currentDate.toLocaleString('default', { month: 'long' });
+
+                    let title = `${monthName} ${year}`;
+
+                    if (this.currentView === 'weekly') {
+                        const weekStart = new Date(this.currentDate);
+                        weekStart.setDate(this.currentDate.getDate() - this.currentDate.getDay());
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+
+                        const startMonth = weekStart.toLocaleString('default', { month: 'short' });
+                        const endMonth = weekEnd.toLocaleString('default', { month: 'short' });
+
+                        if (startMonth === endMonth) {
+                            title = `${startMonth} ${weekStart.getDate()}-${weekEnd.getDate()}, ${year}`;
+                        } else {
+                            title = `${startMonth} ${weekStart.getDate()} - ${endMonth} ${weekEnd.getDate()}, ${year}`;
+                        }
+                    } else if (this.currentView === 'quarterly') {
+                        const quarter = Math.floor(month / 3) + 1;
+                        title = `Q${quarter} ${year}`;
+                    }
+
+                    return title;
+                },
+                navigatePrevious() {
+                    if (this.currentView === 'weekly') {
+                        this.currentDate.setDate(this.currentDate.getDate() - 7);
+                    } else if (this.currentView === 'monthly') {
+                        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+                    } else if (this.currentView === 'quarterly') {
+                        this.currentDate.setMonth(this.currentDate.getMonth() - 3);
+                    }
+                },
+                navigateNext() {
+                    if (this.currentView === 'weekly') {
+                        this.currentDate.setDate(this.currentDate.getDate() + 7);
+                    } else if (this.currentView === 'monthly') {
+                        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+                    } else if (this.currentView === 'quarterly') {
+                        this.currentDate.setMonth(this.currentDate.getMonth() + 3);
+                    }
+                },
+                renderCalendarView() {
+                    // Basic monthly calendar view
+                    if (this.currentView === 'monthly') {
+                        const year = this.currentDate.getFullYear();
+                        const month = this.currentDate.getMonth();
+
+                        const firstDayOfMonth = new Date(year, month, 1);
+                        const lastDayOfMonth = new Date(year, month + 1, 0);
+                        const firstDayOfWeek = firstDayOfMonth.getDay();
+                        const totalDays = lastDayOfMonth.getDate();
+
+                        const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
                             tagName: 'div',
                             attributes: { class: 'calendar-day-header' },
-                            children: [monthName]
-                        });
-                    }
-                    
-                    gridClass = 'calendar-grid-quarterly';
-                    
-                    for (let i = 0; i < 3; i++) {
-                        const monthIndex = quarterStartMonth + i;
-                        const monthDate = new Date(year, monthIndex, 1);
-                        const monthName = monthDate.toLocaleString('default', { month: 'long' });
-                        
-                        const monthEvents = filteredEvents.filter(event => {
-                            const [yearStr, monthStr, dayStr] = event.date.split('-');
-                            const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                            return eventDate.getFullYear() === year && eventDate.getMonth() === monthIndex;
-                        });
+                            children: [day]
+                        }));
 
-                        days.push({
-                            tagName: 'div',
-                            attributes: { class: 'calendar-month' },
-                            children: [
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'month-name' },
-                                    children: [monthName]
-                                },
-                                createMiniCalendar(year, monthIndex, monthEvents),
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'month-events' },
-                                    children: monthEvents.map(event => {
-                                        const timeInfo = event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '';
-                                        const tooltip = [
-                                            event.title,
-                                            timeInfo ? `Time: ${timeInfo}` : '',
-                                            event.description ? `Description: ${event.description}` : ''
-                                        ].filter(Boolean).join('\n');
-                                        
-                                        return {
-                                            tagName: 'div',
-                                            attributes: { 
-                                                class: `calendar-event ${event.starred ? 'starred' : ''}`,
-                                                style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`,
-                                                title: tooltip
-                                            },
-                                            children: [
-                                                event.starred ? {
-                                                    tagName: 'i',
-                                                    attributes: { class: 'fas fa-star event-star' }
-                                                } : null,
-                                                `${event.date.split('-')[2]}: ${event.title}`
-                                            ].filter(Boolean)
-                                        };
-                                    })
-                                }
-                            ]
-                        });
-                    }
-                    
-                    currentPeriodEvents = filteredEvents.filter(event => {
-                        const [yearStr, monthStr, dayStr] = event.date.split('-');
-                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                        const eventQuarter = Math.floor(eventDate.getMonth() / 3);
-                        return eventDate.getFullYear() === year && eventQuarter === quarter;
-                    });
-                    
-                } else {
-                    // Monthly view logic (existing code)
-                    // Filter events for current month for count calculations
-                    currentPeriodEvents = filteredEvents.filter(event => {
-                        const [yearStr, monthStr, dayStr] = event.date.split('-');
-                        const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                        return eventDate.getFullYear() === year && eventDate.getMonth() === month;
-                    });
+                        const days = [];
 
-                    const firstDayOfMonth = new Date(year, month, 1);
-                    const lastDayOfMonth = new Date(year, month + 1, 0);
-
-                    const firstDayOfWeek = firstDayOfMonth.getDay();
-                    const totalDays = lastDayOfMonth.getDate();
-
-                    dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => ({
-                        tagName: 'div',
-                        attributes: { class: 'calendar-day-header' },
-                        children: [day]
-                    }));
-
-                    for (let i = 0; i < firstDayOfWeek; i++) {
-                        days.push({ tagName: 'div', attributes: { class: 'calendar-day empty' } });
-                    }
-
-                    for (let day = 1; day <= totalDays; day++) {
-                        const date = new Date(year, month, day);
-                        const today = new Date();
-                        const isToday = date.toDateString() === today.toDateString();
-
-                        const dayEvents = filteredEvents.filter(event => {
-                            const [yearStr, monthStr, dayStr] = event.date.split('-');
-                            const eventDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-                            return eventDate.getFullYear() === year &&
-                                   eventDate.getMonth() === month &&
-                                   eventDate.getDate() === day;
-                        });
-
-                        let isHighlighted = false;
-                        if (currentFilterType === 'tag' && currentTag) {
-                            isHighlighted = dayEvents.some(event => event.tags && event.tags.includes(currentTag));
-                        }
-
-                        const isSelected = date.toDateString() === selectedDate.toDateString();
-
-                        days.push({
-                            tagName: 'div',
-                            attributes: { 
-                                class: `calendar-day ${isToday ? 'today' : ''} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''}`,
-                                onclick: `selectDate('${date.toISOString()}')`
-                            },
-                            children: [
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'day-number' },
-                                    children: [day.toString()]
-                                },
-                                ...dayEvents.map(event => {
-                                    const timeInfo = event.startTime && event.endTime ? `${event.startTime} - ${event.endTime}` : '';
-                                    const tooltip = [
-                                        event.title,
-                                        timeInfo ? `Time: ${timeInfo}` : '',
-                                        event.description ? `Description: ${event.description}` : ''
-                                    ].filter(Boolean).join('\n');
-                                    
-                                    return {
-                                        tagName: 'div',
-                                        attributes: { 
-                                            class: `calendar-event ${event.starred ? 'starred' : ''}`,
-                                            style: `background-color: ${user.accounts[event.sourceAccount]?.color || '#007bff'};`,
-                                            title: tooltip
-                                        },
-                                        children: [
-                                            event.starred ? {
-                                                tagName: 'i',
-                                                attributes: { class: 'fas fa-star event-star' }
-                                            } : null,
-                                            event.title
-                                        ].filter(Boolean)
-                                    };
-                                })
-                            ]
-                        });
-                    }
-                }
-
-                const userAccounts = user.accounts || {};
-                const accountEmails = Object.keys(userAccounts);
-                const tags = [...new Set(filteredEvents.flatMap(e => e.tags || []))];
-                const tagIcons = ui.tagIcons || {};
-
-                const folders = [
-                    { 
-                        name: "All Calendars", 
-                        icon: "fas fa-calendar-alt", 
-                        count: currentPeriodEvents.length,
-                        subfolders: accountEmails.map(email => ({
-                            email: email,
-                            name: email,
-                            count: currentPeriodEvents.filter(e => e.sourceAccount === email).length
-                        }))
-                    },
-                    { 
-                        name: "Starred", 
-                        icon: "fas fa-star",
-                        count: currentPeriodEvents.filter(e => e.starred).length
-                    },
-                    { 
-                        name: "Categories", 
-                        icon: "fas fa-tags",
-                        subfolders: tags.map(tag => ({
-                            name: tag.slice(1).charAt(0).toUpperCase() + tag.slice(2),
-                            originalTag: tag,
-                            icon: tagIcons[tag] || tagIcons.default,
-                            count: currentPeriodEvents.filter(e => e.tags && e.tags.includes(tag)).length
-                        }))
-                    }
-                ];
-
-                const folderItems = [];
-                folders.forEach(folder => {
-                    folderItems.push(createFolderItem(folder));
-                    
-                    if (folder.subfolders && folder.subfolders.length > 0) {
-                        folder.subfolders.forEach(subfolder => {
-                            if (folder.name === "All Calendars") {
-                                folderItems.push(createFolderItem(subfolder, true, subfolder.email));
-                            } else {
-                                folderItems.push(createFolderItem(subfolder, true, null, subfolder.originalTag));
-                            }
-                        });
-                    }
-                });
-
-                // Update folder counts based on current account selection
-                document.querySelectorAll('.folder-item').forEach(item => {
-                    const countEl = item.querySelector('.folder-count');
-                    if (countEl) {
-                        const accountEmail = item.getAttribute('data-account');
-                        const folderName = item.getAttribute('data-folder');
-                        const categoryName = item.getAttribute('data-category');
-                        
-                        let count = 0;
-                        if (accountEmail && accountEmail !== "") {
-                            // Account events
-                            count = currentPeriodEvents.filter(e => e.sourceAccount === accountEmail).length;
-                        } else if (folderName && folderName !== "") {
-                            // Top-level folder
-                            if (folderName === 'Starred') {
-                                if (currentAccount) {
-                                    count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.starred).length;
-                                } else {
-                                    count = currentPeriodEvents.filter(e => e.starred).length;
-                                }
-                            } else if (folderName === 'All Calendars') {
-                                if (currentAccount) {
-                                    count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount).length;
-                                } else {
-                                    count = currentPeriodEvents.length;
-                                }
-                            }
-                        } else if (categoryName) {
-                            // Category
-                            if (currentAccount) {
-                                count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
-                            } else {
-                                count = currentPeriodEvents.filter(e => e.tags && e.tags.includes(categoryName)).length;
-                            }
-                        }
-                        countEl.textContent = count.toString();
-                    }
-                });
-
-                // Update visual selection
-                document.querySelectorAll('.folder-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                if (window.selectedFolderId) {
-                    const selectedItem = document.getElementById(window.selectedFolderId);
-                    if (selectedItem) {
-                        selectedItem.classList.add('active');
-                    }
-                }
-                
-                // Also keep account selection active if we're filtering within an account
-                if (currentAccount) {
-                    const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
-                    if (accountItem) {
-                        accountItem.classList.add('active');
-                    }
-                }
-
-                const calendarWrapper = document.querySelector('.plugin-wrapper');
-                
-                if (calendarWrapper) {
-                    const sidebar = document.querySelector('.calendar-sidebar');
-                    render({
-                        tagName: 'div',
-                        attributes: { class: 'calendar-sidebar' },
-                        children: folderItems
-                    }, {replaceEl: sidebar});
-
-                    const currentCalendarGrid = calendarWrapper.querySelector('.calendar-grid, .calendar-grid-quarterly, .calendar-grid-weekly-vertical');
-                    const currentCalendarHeader = calendarWrapper.querySelector('.plugin-header');
-                    
-                    render({
-                        tagName: 'div',
-                        attributes: { class: 'plugin-header' },
-                        children: [
-                           {
-                                tagName: 'button',
-                                attributes: { 
-                                    class: 'nav-button',
-                                    onclick: 'navigatePrevious()'
-                                },
-                                children: ['‹']
-                           },
-                           {
-                                tagName: 'h1',
-                                children: getHeaderTitle()
-                           },
-                           {
-                                tagName: 'button',
-                                attributes: { 
-                                    class: 'nav-button',
-                                    onclick: 'navigateNext()'
-                                },
-                                children: ['›']
-                           },
-                           {
+                        // Empty cells for days before the first day of the month
+                        for (let i = 0; i < firstDayOfWeek; i++) {
+                            days.push({
                                 tagName: 'div',
-                                attributes: { class: 'view-toggles' },
+                                attributes: { class: 'calendar-day empty' }
+                            });
+                        }
+
+                        // Days of the month
+                        for (let day = 1; day <= totalDays; day++) {
+                            const date = new Date(year, month, day);
+                            const today = new Date();
+                            const isToday = date.toDateString() === today.toDateString();
+
+                            const dayEvents = this.filteredEvents.filter(event => {
+                                const eventStart = new Date(event.startDate);
+                                const eventEnd = new Date(event.endDate);
+
+                                // Set time to start/end of day for comparison
+                                const dayStart = new Date(date);
+                                dayStart.setHours(0, 0, 0, 0);
+                                const dayEnd = new Date(date);
+                                dayEnd.setHours(23, 59, 59, 999);
+
+                                // Check if event overlaps with this day
+                                return eventStart <= dayEnd && eventEnd >= dayStart;
+                            });
+
+                            days.push({
+                                tagName: 'div',
+                                attributes: {
+                                    class: `calendar-day ${isToday ? 'today' : ''}`,
+                                    onclick: () => {
+                                        this.selectedDate = new Date(date);
+                                    }
+                                },
                                 children: [
                                     {
-                                        tagName: 'button',
-                                        attributes: { 
-                                            class: `view-toggle ${currentView === 'weekly' ? 'active' : ''}`,
-                                            onclick: 'switchView("weekly")'
-                                        },
-                                        children: ['Week']
+                                        tagName: 'div',
+                                        attributes: { class: 'day-number' },
+                                        children: [day.toString()]
                                     },
-                                    {
-                                        tagName: 'button',
-                                        attributes: { 
-                                            class: `view-toggle ${currentView === 'monthly' ? 'active' : ''}`,
-                                            onclick: 'switchView("monthly")'
+                                    ...dayEvents.slice(0, 3).map(event => ({
+                                        tagName: 'div',
+                                        attributes: {
+                                            class: 'calendar-event',
+                                            style: `background-color: ${event.color}`
                                         },
-                                        children: ['Month']
-                                    },
-                                    {
-                                        tagName: 'button',
-                                        attributes: { 
-                                            class: `view-toggle ${currentView === 'quarterly' ? 'active' : ''}`,
-                                            onclick: 'switchView("quarterly")'
-                                        },
-                                        children: ['Quarter']
-                                    }
+                                        children: [event.title]
+                                    })),
+                                    ...(dayEvents.length > 3 ? [{
+                                        tagName: 'div',
+                                        attributes: { class: 'more-events' },
+                                        children: [`+${dayEvents.length - 3} more`]
+                                    }] : [])
                                 ]
-                           },
-                           {
-                                tagName: 'input',
-                                attributes: { 
-                                    type: 'date',
-                                    class: 'date-picker',
-                                    value: currentDate.toISOString().split('T')[0],
-                                    onchange: 'updateDate(this)'
-                                }
-                            }
-                        ]
-                    }, { replaceEl: currentCalendarHeader });
-
-                    render({
-                        tagName: 'div',
-                        attributes: { class: gridClass },
-                        children: currentView === 'weekly' ? days : [...dayHeaders, ...days]
-                    }, { replaceEl: currentCalendarGrid });
-
-                    // Apply visual selection and count updates for existing calendar
-                    setTimeout(() => {
-                        // Update folder counts based on current account selection
-                        document.querySelectorAll('.folder-item').forEach(item => {
-                            const countEl = item.querySelector('.folder-count');
-                            if (countEl) {
-                                const accountEmail = item.getAttribute('data-account');
-                                const folderName = item.getAttribute('data-folder');
-                                const categoryName = item.getAttribute('data-category');
-                                
-                                let count = 0;
-                                if (accountEmail && accountEmail !== "") {
-                                    // Account events
-                                    count = currentPeriodEvents.filter(e => e.sourceAccount === accountEmail).length;
-                                } else if (folderName && folderName !== "") {
-                                    // Top-level folder
-                                    if (folderName === 'Starred') {
-                                        if (currentAccount) {
-                                            count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.starred).length;
-                                        } else {
-                                            count = currentPeriodEvents.filter(e => e.starred).length;
-                                        }
-                                    } else if (folderName === 'All Calendars') {
-                                        if (currentAccount) {
-                                            count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount).length;
-                                        } else {
-                                            count = currentPeriodEvents.length;
-                                        }
-                                    }
-                                } else if (categoryName) {
-                                    // Category
-                                    if (currentAccount) {
-                                        count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
-                                    } else {
-                                        count = currentPeriodEvents.filter(e => e.tags && e.tags.includes(categoryName)).length;
-                                    }
-                                }
-                                countEl.textContent = count.toString();
-                            }
-                        });
-
-                        // Update visual selection
-                        document.querySelectorAll('.folder-item').forEach(item => {
-                            item.classList.remove('active');
-                        });
-                        if (window.selectedFolderId) {
-                            const selectedItem = document.getElementById(window.selectedFolderId);
-                            if (selectedItem) {
-                                selectedItem.classList.add('active');
-                            }
+                            });
                         }
-                        
-                        // Also keep account selection active if we're filtering within an account
-                        if (currentAccount) {
-                            const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
-                            if (accountItem) {
-                                accountItem.classList.add('active');
-                            }
-                        }
-                    }, 0);
-                    
-                    return;
-                }
 
-                render({
-                    tagName: 'div',
-                    attributes: { class: 'plugin-wrapper' },
-                    children: [
-                        {
+                        return {
                             tagName: 'div',
-                            attributes: { class: 'plugin-header' },
-                            children: [
-                                {
-                                    tagName: 'button',
-                                    attributes: { 
-                                        class: 'nav-button',
-                                        onclick: 'navigatePrevious()'
-                                    },
-                                    children: ['‹']
-                                },
-                                {
-                                    tagName: 'h1',
-                                    children: getHeaderTitle()
-                                },
-                                {
-                                    tagName: 'button',
-                                    attributes: { 
-                                        class: 'nav-button',
-                                        onclick: 'navigateNext()'
-                                    },
-                                    children: ['›']
-                                },
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'view-toggles' },
-                                    children: [
-                                        {
-                                            tagName: 'button',
-                                            attributes: { 
-                                                class: `view-toggle ${currentView === 'weekly' ? 'active' : ''}`,
-                                                onclick: 'switchView("weekly")'
-                                            },
-                                            children: ['Week']
-                                        },
-                                        {
-                                            tagName: 'button',
-                                            attributes: { 
-                                                class: `view-toggle ${currentView === 'monthly' ? 'active' : ''}`,
-                                                onclick: 'switchView("monthly")'
-                                            },
-                                            children: ['Month']
-                                        },
-                                        {
-                                            tagName: 'button',
-                                            attributes: { 
-                                                class: `view-toggle ${currentView === 'quarterly' ? 'active' : ''}`,
-                                                onclick: 'switchView("quarterly")'
-                                            },
-                                            children: ['Quarter']
-                                        }
-                                    ]
-                                },
-                                {
-                                    tagName: 'input',
-                                    attributes: { 
-                                        type: 'date',
-                                        class: 'date-picker',
-                                        value: currentDate.toISOString().split('T')[0],
-                                        onchange: 'updateDate(this)'
-                                    }
-                                }
-                            ]
-                        },
-                        {
-                            tagName: 'div',
-                            attributes: { class: 'plugin-container' },
-                            children: [
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'plugin-sidebar' },
-                                    children: folderItems
-                                },
-                                {
-                                    tagName: 'div',
-                                    attributes: { class: 'plugin-main' },
-                                    children: [
-                                        {
-                                            tagName: 'div',
-                                            attributes: { class: gridClass },
-                                            children: currentView === 'weekly' ? days : [...dayHeaders, ...days]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }, { replaceEl: document.getElementById('app') });
-                
-                // Apply initial visual selection and count updates
-                setTimeout(() => {
-                    // Update folder counts based on current account selection
-                    document.querySelectorAll('.folder-item').forEach(item => {
-                        const countEl = item.querySelector('.folder-count');
-                        if (countEl) {
-                            const accountEmail = item.getAttribute('data-account');
-                            const folderName = item.getAttribute('data-folder');
-                            const categoryName = item.getAttribute('data-category');
-                            
-                            let count = 0;
-                            if (accountEmail && accountEmail !== "") {
-                                // Account events
-                                count = currentPeriodEvents.filter(e => e.sourceAccount === accountEmail).length;
-                            } else if (folderName && folderName !== "") {
-                                // Top-level folder
-                                if (folderName === 'Starred') {
-                                    if (currentAccount) {
-                                        count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.starred).length;
-                                    } else {
-                                        count = currentPeriodEvents.filter(e => e.starred).length;
-                                    }
-                                } else if (folderName === 'All Calendars') {
-                                    if (currentAccount) {
-                                        count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount).length;
-                                    } else {
-                                        count = currentPeriodEvents.length;
-                                    }
-                                }
-                            } else if (categoryName) {
-                                // Category
-                                if (currentAccount) {
-                                    count = currentPeriodEvents.filter(e => e.sourceAccount === currentAccount && e.tags && e.tags.includes(categoryName)).length;
-                                } else {
-                                    count = currentPeriodEvents.filter(e => e.tags && e.tags.includes(categoryName)).length;
-                                }
-                            }
-                            countEl.textContent = count.toString();
-                        }
-                    });
-
-                    // Update visual selection
-                    document.querySelectorAll('.folder-item').forEach(item => {
-                        item.classList.remove('active');
-                    });
-                    if (window.selectedFolderId) {
-                        const selectedItem = document.getElementById(window.selectedFolderId);
-                        if (selectedItem) {
-                            selectedItem.classList.add('active');
-                        }
+                            attributes: { class: 'calendar-grid' },
+                            children: [...dayHeaders, ...days]
+                        };
                     }
-                    
-                    // Also keep account selection active if we're filtering within an account
-                    if (currentAccount) {
-                        const accountItem = document.getElementById(`account-${currentAccount.replace('@', '-at-')}`);
-                        if (accountItem) {
-                            accountItem.classList.add('active');
-                        }
-                    }
-                }, 0);
-            };
 
-            window.updateDate = (element) => {
-                const [year, month, day] = element.value.split('-').map(Number);
-                currentDate = new Date(year, month - 1, day);
-                renderCalendar();
-            };
-
-            window.selectDate = (dateString) => {
-                selectedDate = new Date(dateString);
-                currentDate = new Date(dateString);
-                renderCalendar();
-            };
-
-            window.filterEventsByAccount = (accountEmail) => {
-                currentFilterType = 'account';
-                currentFilterValue = accountEmail;
-                currentAccount = accountEmail;
-                currentTag = null;
-                window.selectedFolderId = accountEmail ? `account-${accountEmail.replace('@', '-at-')}` : 'folder-All Calendars';
-                renderCalendar();
-            };
-
-            window.filterEventsByFolder = (folderName) => {
-                currentTag = null;
-                const lowerCaseFolderName = folderName.toLowerCase();
-                
-                if (lowerCaseFolderName === 'all calendars') {
-                    // When clicking on All Calendars, show all events and reset account filter
-                    currentFilterType = 'folder';
-                    currentFilterValue = folderName;
-                    currentAccount = null;
-                } else if (lowerCaseFolderName === 'starred') {
-                    currentFilterType = 'starred';
-                    currentFilterValue = null;
-                } else {
-                    currentFilterType = 'folder';
-                    currentFilterValue = folderName;
+                    // Placeholder for other views
+                    return {
+                        tagName: "div",
+                        attributes: { class: "calendar-placeholder" },
+                        children: [`${this.currentView} view - ${this.headerTitle}`]
+                    };
                 }
-                window.selectedFolderId = `folder-${folderName}`;
-                renderCalendar();
+            });
+
+            // Prepare folder data for dynamic generation
+            const folderData = {
+                accountEmails,
+                tags,
+                tagIcons
             };
 
-            window.filterEventsByTag = (tagName) => {
-                currentFilterType = 'tag';
-                currentTag = tagName;
-                window.selectedFolderId = `category-${tagName}`;
-                renderCalendar();
-            }
-
-            renderCalendar();
+            document.getElementById("init").replaceWith(await Calendar(appState, folderData, user))
         </script>
     </body>
 </html>
