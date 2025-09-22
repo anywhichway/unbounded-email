@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baux SSR Example</title>
-    <script src="./assets/js/baux-browser.js"></script>
+    <title>Lightview SSR Example</title>
+    <script src="./assets/js/lightview.js"></script>
     <script>
-        const baux = Baux();
-        baux.debug = true;
+        const lightview = Lightview();
+        lightview.debug = true;
     </script>
 </head>
 <body>
-    <h1>Baux Server-Side Rendering Example</h1>
+    <h1>Lightview Server-Side Rendering Example</h1>
 
     
     <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 4px;">
-        <h3>How Modes Work in Baux Server:</h3>
+        <h3>How Modes Work in Lightview Server:</h3>
         <ol>
             <li><strong>ssr-static:</strong> Server generates HTML without hydration script (for static content only)</li>
             <li><strong>ssr-hydrate:</strong> Server generates HTML with hydration script for client-side interactivity</li>
         </ol>
-        <p><strong>Note:</strong> The server version of Baux is optimized for server-side rendering and supports only these two modes. For client-side rendering, use baux-browser.js library.</p>
+        <p><strong>Note:</strong> The server version of Lightview is optimized for server-side rendering and supports only these two modes. For client-side rendering, use lightview.js library.</p>
     </div>
 
     <!-- Server-rendered content will be inserted here -->
@@ -33,13 +33,15 @@
         async function serverSideRender() {
             // dummy fetch
             async function fetch(url) {
-                const {Baux} = await import('./assets/js/baux-server.js');
-                const baux = Baux();
+                // just put the fecth code below on the server in file for the URL being fetched
+                const {Lightview} = await import('./assets/js/lightview-server.js');
+                const lightview = Lightview();
 
                 // Function for client-side interaction
+                // Lightview will serialize this to the client if is is part of a component
                 function incrementCount() {
                     debugger;
-                    const counter = baux.state.get("counter");
+                    const counter = lightview.state.get("counter");
                     counter.count++;
                 }
 
@@ -53,7 +55,7 @@
                     children: [
                         {
                             tagName: "h2",
-                            children: ["Server-Side Rendered Counter"]
+                            children: ["Server-Side Rendered Counter With Hydration"]
                         },
                         {
                             tagName: "p",
@@ -63,7 +65,7 @@
                             tagName: "button",
                             attributes: {
                                 style: "padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;",
-                                onclick: incrementCount
+                                onclick: incrementCount // gets serialized
                             },
                             children: ["Increment"]
                         }
@@ -71,11 +73,11 @@
                 };
 
                 // Initial state
-                const initialState = baux.state({ count: 5 });
-                baux.state.register("counter", initialState);
+                const initialState = lightview.state({ count: 5 });
+                lightview.state.register("counter", initialState);
 
                 // Generate HTML string with hydration script
-                const htmlString = await baux.render(componentData, {
+                const htmlString = await lightview.render(componentData, {
                     state: initialState
                 }, "ssr-hydrate");
 
@@ -86,7 +88,7 @@
             const targetEl = document.getElementById('ssr-content');
             targetEl.innerHTML = await fetch("http://localhost:3000/counter").then(res => res.text());
             // Execute any scripts that were generated
-            baux.hydrate(targetEl);
+            lightview.hydrate(targetEl);
 
         }
 
@@ -101,13 +103,13 @@
     <script>
         // Example of generating HTML string directly (for server-side use, static)
         async function generateHTMLString() {
-            const {Baux} = await import('./assets/js/baux-server.js');
-            const baux = Baux();
-            const { state } = baux;
+            const {Lightview} = await import('./assets/js/lightview-server.js');
+            const lightview = Lightview();
+            const { state } = lightview;
 
             const todoState = state({
                 todos: [
-                    { id: 1, text: "Learn Baux SSR", completed: true },
+                    { id: 1, text: "Learn Lightview SSR", completed: true },
                     { id: 2, text: "Build reactive UI", completed: false },
                     { id: 3, text: "Deploy to server", completed: false }
                 ]
@@ -121,7 +123,7 @@
                 children: [
                     {
                         tagName: "h3",
-                        children: ["Server-Rendered Todo List"]
+                        children: ["Static Server-Rendered Todo List"]
                     },
                     {
                         tagName: "ul",
@@ -139,7 +141,7 @@
                 ]
             };
 
-            const htmlOutput = await baux.render(todoComponent, {
+            const htmlOutput = await lightview.render(todoComponent, {
                 state: todoState
             }, "ssr-static");
 

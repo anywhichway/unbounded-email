@@ -53,71 +53,55 @@ const FolderItem = async (props) => {
                     class: "folder-count"
                 },
                 children: [() => {
-                    console.log(`[FOLDER_COUNT_CALC] Starting calculation for folder: ${folder.name}`, {
-                        timestamp: new Date().toISOString(),
-                        folderId: folder.id,
-                        tagName: tagName,
-                        accountEmail: accountEmail,
-                        currentAccount: appState.currentAccount,
-                        totalContacts: appState.contacts.length
-                    });
-                    
                     let count = 0;
+                    
+                    // Helper function to get all contacts from user.accounts
+                    const getAllContacts = () => {
+                        return Object.values(appState.user.accounts).flatMap(account => account.contacts || []);
+                    };
                     
                     if (accountEmail) {
                         // For account folders, count contacts from that specific account
-                        count = appState.contacts.filter(c => c.sourceAccount === accountEmail).length;
+                        const account = appState.user.accounts[accountEmail];
+                        count = account ? (account.contacts || []).length : 0;
                     } else if (tagName) {
                         // For tag folders, count contacts with that tag
                         // If an account is currently selected, only count from that account
                         let contactsToCheck = appState.currentAccount ? 
-                            appState.contacts.filter(c => c.sourceAccount === appState.currentAccount) : 
-                            appState.contacts;
+                            (appState.user.accounts[appState.currentAccount]?.contacts || []) : 
+                            getAllContacts();
                         count = contactsToCheck.filter(c => c.tags && c.tags.includes(tagName)).length;
-                        
-                        // Log category folder counts specifically
-                        console.log(`[FOLDER_COUNT] ${tagName} returning count: ${count}`, {
-                            timestamp: new Date().toISOString(),
-                            currentAccount: appState.currentAccount,
-                            contactsToCheck: contactsToCheck.length,
-                            finalCount: count
-                        });
                     } else if (folder.name === "All Contacts") {
                         // For "All Contacts", show total count of all contacts
-                        count = appState.contacts.length;
+                        count = getAllContacts().length;
                     } else if (folder.name === "Categories") {
                         // Count unique tags from contacts (respecting account filter if active)
                         let contactsToCheck = appState.currentAccount ? 
-                            appState.contacts.filter(c => c.sourceAccount === appState.currentAccount) : 
-                            appState.contacts;
+                            (appState.user.accounts[appState.currentAccount]?.contacts || []) : 
+                            getAllContacts();
                         const uniqueTags = new Set(contactsToCheck.flatMap(c => c.tags || []));
                         count = uniqueTags.size;
                     } else if (folder.name === "Starred") {
                         // Count starred contacts (respecting account filter if active)
                         let contactsToCheck = appState.currentAccount ? 
-                            appState.contacts.filter(c => c.sourceAccount === appState.currentAccount) : 
-                            appState.contacts;
+                            (appState.user.accounts[appState.currentAccount]?.contacts || []) : 
+                            getAllContacts();
                         count = contactsToCheck.filter(c => c.starred).length;
                     } else if (folder.name === "Frequently Contacted") {
                         // Count frequently contacted (respecting account filter if active)
                         let contactsToCheck = appState.currentAccount ? 
-                            appState.contacts.filter(c => c.sourceAccount === appState.currentAccount) : 
-                            appState.contacts;
+                            (appState.user.accounts[appState.currentAccount]?.contacts || []) : 
+                            getAllContacts();
                         count = contactsToCheck.filter(c => c.frequentlyContacted).length;
                     } else if (folder.name === "Scheduled") {
                         // Count scheduled contacts (respecting account filter if active)
                         let contactsToCheck = appState.currentAccount ? 
-                            appState.contacts.filter(c => c.sourceAccount === appState.currentAccount) : 
-                            appState.contacts;
+                            (appState.user.accounts[appState.currentAccount]?.contacts || []) : 
+                            getAllContacts();
                         count = contactsToCheck.filter(c => c.scheduled).length;
                     }
                     
                     const result = count > 0 ? count.toString() : "";
-                    console.log(`[FOLDER_COUNT_RESULT] Final result for ${folder.name}: "${result}"`, {
-                        timestamp: new Date().toISOString(),
-                        count: count,
-                        stringResult: result
-                    });
                     
                     return result;
                 }]

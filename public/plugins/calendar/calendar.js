@@ -138,7 +138,13 @@ const Calendar = async (state, folderData, user) => {
                                 // Categories subfolders (tags)
                                 ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
                                     FolderItem({ folder: { name: tag.charAt(1).toUpperCase() + tag.slice(2), originalTag: tag, icon: tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
-                                )) : [])
+                                )) : []),
+                                // Snoozed Emails category
+                                FolderItem({ folder: { name: "Snoozed Emails", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: "snoozed", appState: state }),
+                                // Scheduled Emails category
+                                FolderItem({ folder: { name: "Scheduled Emails", icon: "fas fa-calendar-alt" }, isSubfolder: false, accountEmail: null, tagName: "scheduled", appState: state }),
+                                // Contact Reachout category
+                                FolderItem({ folder: { name: "Contact Reachout", icon: "fas fa-user-friends" }, isSubfolder: false, accountEmail: null, tagName: "contact-reachout", appState: state })
                             ]);
                             
                             return folderItems;

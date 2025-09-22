@@ -1,209 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <link rel="stylesheet" href="../index.css">
-    <link rel="stylesheet" href="./index.css">
-    <script src="../../assets/js/lightview-core.js"></script>
-    <script src="../../assets/js/lightview-dom.js"></script>
-    <script src="../../assets/js/lightview-iframe.js"></script>
-    <script src="../../assets/js/lightview.js"></script>
-    <script src="./index.js"></script>
-</head>
-<body>
-    <div id="app"></div>
-    <script type="module" id="init">
-        const {render} = Lightview("dom");
-        const {local} = lvIFrame;
-        const {user, ui, get, set, navigate} = await local(lvIFrame.import("./"));
+    <head>
+        <title>Unbounded: Configure</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+        <link rel="stylesheet" href="../index.css">
+        <link rel="stylesheet" href="./index.css">
+        <script src="../../assets/js/lightview.js"></script>
+        <script>
+            const lightview = Lightview("browser");
+            const {render, state} = lightview;
+            // Make lightview available globally for component files
+            window.lightview = lightview;
+        </script>
+        <script src="./index.js"></script>
+        <script src="./configure.js"></script>
+        <script src="./account-item.js"></script>
+    </head>
+    <body>
+         <script type="module" id="init">
+            const {user, ui} = await lightview.import("./");
 
-        const renderConfigureView = () => {
-            const accountList = Object.keys(user.accounts).map(email => ({
-                tagName: 'div',
-                attributes: { class: 'account-item' },
-                children: [
-                    {
-                        tagName: 'a',
-                        attributes: {
-                            href: `./account/index.html?account=${encodeURIComponent(email)}`,
-                            onclick: (e) => {
-                                e.preventDefault();
-                                // Pass the current location as base URL to resolve relative paths properly
-                                navigate(`../account/index.html?account=${encodeURIComponent(email)}`, window.location.href);
-                            }
-                        },
-                        children: [email]
-                    },
-                    {
-                        tagName: 'button',
-                        attributes: {
-                            class: 'delete-btn',
-                            onclick: () => deleteAccount(email)
-                        },
-                        children: ['Delete']
-                    }
-                ]
+            // Get user accounts from user structure
+            const userAccounts = user.accounts || {};
+            const accountEmails = Object.keys(userAccounts);
+            const accounts =accountEmails.map(email => ({
+                email: email,
+                ...user.accounts[email]
             }));
 
-            render({
-                tagName: 'div',
-                attributes: { class: 'plugin-wrapper' },
-                children: [
-                    {
-                        tagName: 'div',
-                        attributes: { class: 'plugin-header' },
-                        children: [{ tagName: 'h1', children: ['Configure'] }]
-                    },
-                    {
-                        tagName: 'div',
-                        attributes: { class: 'plugin-container' },
-                        children: [
-                            {
-                                tagName: 'div',
-                                attributes: { class: 'form-group' },
-                                children: [
-                                    { tagName: 'label', attributes: { for: 'screen-name' }, children: ['Screen Name'] },
-                                    { tagName: 'input', attributes: { type: 'text', id: 'screen-name', value: user.screenName || '' } }
-                                ]
-                            },
-                            {
-                                tagName: 'div',
-                                attributes: { class: 'form-group' },
-                                children: [
-                                    { tagName: 'button', attributes: { onclick: 'saveScreenName()' }, children: ['Save Screen Name'] }
-                                ]
-                            },
-                            {
-                                tagName: 'div',
-                                attributes: { class: 'section' },
-                                children: [
-                                    { tagName: 'h2', children: ['Accounts'] },
-                                    ...accountList,
-                                    {
-                                        tagName: 'div',
-                                        attributes: { class: 'form-group' },
-                                        children: [
-                                            { tagName: 'button', attributes: { onclick: 'showAddAccountForm()' }, children: ['Add Account'] }
-                                        ]
-                                    }
-                                ]
-                            },
-                            {
-                                tagName: 'div',
-                                attributes: { id: 'add-account-form', class: 'hidden' },
-                                children: [
-                                    { tagName: 'h3', children: ['Add New Account'] },
-                                    {
-                                        tagName: 'div',
-                                        attributes: { class: 'form-group' },
-                                        children: [
-                                            { tagName: 'label', attributes: { for: 'account-email' }, children: ['Email'] },
-                                            { tagName: 'input', attributes: { type: 'email', id: 'account-email' } }
-                                        ]
-                                    },
-                                    {
-                                        tagName: 'div',
-                                        attributes: { class: 'form-group' },
-                                        children: [
-                                            { tagName: 'label', attributes: { for: 'account-type' }, children: ['Type'] },
-                                            {
-                                                tagName: 'select',
-                                                attributes: { id: 'account-type' },
-                                                children: [
-                                                    { tagName: 'option', attributes: { value: 'Google' }, children: ['Google'] },
-                                                    { tagName: 'option', attributes: { value: 'Microsoft' }, children: ['Microsoft'] },
-                                                    { tagName: 'option', attributes: { value: 'Other' }, children: ['Other'] }
-                                                ]
-                                            }
-                                        ]
-                                    },
-                                    {
-                                        tagName: 'div',
-                                        attributes: { class: 'form-group' },
-                                        children: [
-                                            { tagName: 'label', attributes: { for: 'account-name' }, children: ['Name'] },
-                                            { tagName: 'input', attributes: { type: 'text', id: 'account-name' } }
-                                        ]
-                                    },
-                                    {
-                                        tagName: 'div',
-                                        attributes: { class: 'form-group' },
-                                        children: [
-                                            { tagName: 'label', attributes: { for: 'account-color' }, children: ['Color'] },
-                                            { tagName: 'input', attributes: { type: 'color', id: 'account-color', value: '#007bff' } }
-                                        ]
-                                    },
-                                    {
-                                        tagName: 'div',
-                                        attributes: { class: 'form-group' },
-                                        children: [
-                                            { tagName: 'button', attributes: { onclick: 'addAccount()' }, children: ['Add Account'] },
-                                            { tagName: 'button', attributes: { onclick: 'hideAddAccountForm()' }, children: ['Cancel'] }
-                                        ]
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }, { replaceEl: document.getElementById('app') });
-        };
-
-        window.saveScreenName = async () => {
-            const newScreenName = document.getElementById('screen-name').value;
-            user.screenName = newScreenName;
-            await set('user', user);
-            alert('Screen name updated successfully!');
-        };
-
-        window.deleteAccount = async (email) => {
-            if (confirm(`Are you sure you want to delete the account ${email}? This action cannot be undone.`)) {
-                delete user.accounts[email];
-                await set('user', user);
-                renderConfigureView();
-            }
-        };
-
-        window.showAddAccountForm = () => {
-            document.getElementById('add-account-form').classList.remove('hidden');
-        };
-
-        window.hideAddAccountForm = () => {
-            document.getElementById('add-account-form').classList.add('hidden');
-        };
-
-        window.addAccount = async () => {
-            const email = document.getElementById('account-email').value;
-            const type = document.getElementById('account-type').value;
-            const name = document.getElementById('account-name').value;
-            const color = document.getElementById('account-color').value;
-
-            if (!email) {
-                alert('Email is required');
-                return;
-            }
-
-            if (user.accounts[email]) {
-                alert('Account already exists');
-                return;
-            }
-
-            user.accounts[email] = {
-                type,
-                name: name || email.split('@')[0],
-                color,
-                folders: ["Inbox", "Drafts", "Sent", "Spam", "Trash"],
-                emails: [],
-                contacts: [],
-                calendar: []
-            };
-
-            await set('user', user);
-            hideAddAccountForm();
-            renderConfigureView();
-            alert('Account added successfully!');
-        };
-
-        renderConfigureView();
-    </script>
-</body>
+            // Reactive state for configuration
+            const appState = state({
+                user: user,
+                accountEmails: accountEmails,
+                showAddAccountForm: false,
+                newAccount: {
+                    email: '',
+                    type: 'Google',
+                    name: '',
+                    color: '#007bff'
+                },
+                accounts
+            });
+            document.getElementById("init").replaceWith(await Configure(appState, set))
+        </script>
+    </body>
 </html>

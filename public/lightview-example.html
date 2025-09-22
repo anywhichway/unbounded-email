@@ -1,108 +1,110 @@
-<head>
-    <script src="./assets/js/lightview-core.js"></script>
-    <script src="./assets/js/lightview-dom.js"></script>
-    <script src="./assets/js/lightview.js"></script>
-    <script type="application/json" id="json-example">
-        {
-            "tagName":"div",
-            "attributes": {
-                "style": "font-size:${fontSize}px; color:blue;",
-                "href": "./lv-test.html",
-                "target": "_self"
-            },
-            "children": [
-                "hello ${name}",
-                {
-                    "tagName":"div",
-                    "attributes": {"src":"./lv-test.html"}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <script src="./assets/js/lightview.js"></script>
+        <script type="application/json" id="json-example">
+            {
+                "tagName":"div",
+                "attributes": {
+                    "style": "font-size:${fontSize}px; color:blue;",
+                    "href": "./lv-test.html",
+                    "target": "_self"
                 },
-                {
-                    "tagName":"div",
-                    "attributes":{"src":"./lv-test.json"}
-                }
-            ]
-        }
-    </script>
-</head>
-<body>
-    <div id="app"></div>
-    <script>
-        const lightview = Lightview("dom");
-        lightview.render({
-            tagName:"div",
-            shadowRoot:[
-                "hello world!",
-                {
-                    tagName:"div",
-                    attributes:{src:'./lv-test.html'}
-                }
-            ]},{replaceEl:document.currentScript});
+                "children": [
+                    "hello ${name}",
+                    {
+                        "tagName":"div",
+                        "attributes": {"src":"./lv-test.html"}
+                    },
+                    {
+                        "tagName":"div",
+                        "attributes":{"src":"./lv-test.json"}
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <div id="app"></div>
+        <script>
+            const lightview = Lightview("browser");
+            lightview.render({
+                tagName:"div",
+                shadowRoot:[
+                    "hello world!",
+                    {
+                        tagName:"div",
+                        attributes:{src:'./lv-test.html'}
+                    }
+                ]},{replaceEl:document.currentScript});
+            </script>
+            <script>
+            const {state} = baux;
+            const userState = state({name:"Bob",fontSize:20});
+            lightview.render(document.getElementById("json-example"),{replaceEl:document.currentScript,state:userState});
+            setTimeout(() => {
+                userState.name = "Alice";
+                userState.fontSize = 10;
+            }, 2000);
         </script>
         <script>
-        const {state} = lightview;
-        const userState = state({name:"Bob",fontSize:20});
-        lightview.render(document.getElementById("json-example"),{replaceEl:document.currentScript,state:userState});
-        setTimeout(() => {
-            userState.name = "Alice";
-            userState.fontSize = 10;
-        }, 2000);
-    </script>
-    <script>
-        lightview.render(document.getElementById("json-example"),{state:{name:"Joe",fontSize:30},nonce:"abc123"}).then(node => {
-        const scripts = node.querySelectorAll("script");
-        document.body.append(node);
-        scripts.forEach(script => {
-            const newScript = document.createElement("script");
-            newScript.innerText = script.innerText;
-            for (const attr of script.attributes) {
-                newScript.setAttribute(attr.name, attr.value);
-            }
-            script.replaceWith(newScript);
-        });
-    });
-    </script>
-    <script>
-        (async () => {
-            const {tags, state} = lightview;
-            const {div} = tags;
-            const counter = state({count:0})
-            const app = await div({style:{fontSize: "20px",color:"green "}, children: [
-                () => `Count: ${counter.count}`,
-                {
-                    tagName:"button",
-                    attributes: {
-                        style: {marginLeft: "10px"},
-                        onclick: () => {counter.count++;}
-                    },
-                    children: ["Increment"]
-                }]});
-            document.getElementById("app").append(app);
-        })();
-    </script>
-    <script type="module">
-        const {render} = lightview;
-        async function Counter(state) {
-            return render(
-                {
-                    tagName: "div",
-                    attributes: {
-                        style: {fontSize: "20px", color: "green"}
-                    },
-                    children: [
-                        () => `Count: ${state.count}`,
-                        {
-                            tagName:"button",
-                            attributes: {
-                                style: {marginLeft: "10px"},
-                                onclick: () => {state.count++;}
-                            },
-                            children: ["Increment"]
-                        }
-                    ]
+            // non-reactive
+            lightview.render(document.getElementById("json-example"),{state:{name:"Joe",fontSize:30},nonce:"abc123"}).then(node => {
+            const scripts = node.querySelectorAll("script");
+            document.body.append(node);
+            scripts.forEach(script => {
+                const newScript = document.createElement("script");
+                newScript.innerText = script.innerText;
+                for (const attr of script.attributes) {
+                    newScript.setAttribute(attr.name, attr.value);
                 }
-            )
-        }
-        document.getElementById("app").append(await Counter(state({count:0})));
-    </script>
-</body>
+                script.replaceWith(newScript);
+            });
+        });
+        </script>
+        <script>
+            (async () => {
+                const {tags, state} = lightview;
+                const {div} = tags;
+                const counter = state({count:0})
+                const app = await div({style:{fontSize: "20px",color:"red"}, children: [
+                    () => `Count: ${counter.count}`,
+                    {
+                        tagName:"button",
+                        attributes: {
+                            style: {marginLeft: "10px"},
+                            onclick: () => {counter.count++;}
+                        },
+                        children: ["Increment"]
+                    }]});
+                document.getElementById("app").append(app);
+            })();
+        </script>
+        <script type="module">
+            const {render} = lightview;
+            async function Counter(state) {
+                return render(
+                    {
+                        tagName: "div",
+                        attributes: {
+                            style: {fontSize: "20px", color: "green"}
+                        },
+                        children: [
+                            () => `Count: ${state.count}`,
+                            {
+                                tagName:"button",
+                                attributes: {
+                                    style: {marginLeft: "10px"},
+                                    onclick: () => {state.count++;}
+                                },
+                                children: ["Increment"]
+                            }
+                        ]
+                    }
+                )
+            }
+            const counter = await Counter(state({count:0}))
+            document.getElementById("app").append(counter);
+        </script>
+    </body>
 </html>

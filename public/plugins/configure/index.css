@@ -1,5 +1,46 @@
+/* Configure Plugin Styles */
+
 .plugin-wrapper {
     padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.plugin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.plugin-header h1 {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.plugin-count {
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+
+.form-section {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.form-section h2 {
+    margin: 0 0 20px 0;
+    color: #333;
+    font-size: 18px;
+    font-weight: 600;
 }
 
 .form-group {
@@ -9,55 +50,197 @@
 .form-group label {
     display: block;
     margin-bottom: 5px;
+    color: #555;
+    font-weight: 500;
 }
 
-.form-group input, .form-group select {
+.form-group input,
+.form-group select {
     width: 100%;
-    padding: 8px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
     box-sizing: border-box;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
 }
 
-button {
-    padding: 10px 15px;
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #007acc;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+/* Button Styles */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
     border: none;
-    background-color: #007bff;
-    color: white;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    margin-right: 10px;
+    transition: all 0.2s ease;
+    text-decoration: none;
 }
 
-button.delete-btn {
-    background-color: #dc3545;
+.btn-primary {
+    background: #007acc;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.btn-link {
+    background: transparent;
+    color: #007acc;
+    padding: 8px 12px;
+}
+
+.btn-link:hover {
+    background: rgba(0, 122, 204, 0.1);
+    color: #0056b3;
+}
+
+/* Account Item Styles */
+.accounts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
 }
 
 .account-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
-    border: 1px solid #ddd;
-    margin-bottom: 10px;
-    border-radius: 4px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    transition: all 0.2s ease;
 }
 
-.account-item a {
-    text-decoration: none;
-    color: #007bff;
+.account-item:hover {
+    border-color: #007acc;
+    box-shadow: 0 2px 8px rgba(0, 122, 204, 0.15);
+}
+
+.account-info {
     flex: 1;
 }
 
-.account-item a:hover {
-    text-decoration: underline;
+.account-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
 }
 
-.section {
+.account-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.account-details {
+    flex: 1;
+}
+
+.account-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 16px;
+}
+
+.account-email {
+    color: #666;
+    font-size: 14px;
+}
+
+.account-stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #666;
+    font-size: 12px;
+}
+
+.stat-item i {
+    font-size: 11px;
+}
+
+.account-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Add Account Form Styles */
+.add-account-form {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
     margin-top: 20px;
 }
 
-.section h2 {
-    margin-bottom: 10px;
+.add-account-form h3 {
+    margin: 0 0 20px 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 600;
 }
 
-.hidden {
-    display: none;
+/* Responsive Design */
+@media (max-width: 768px) {
+    .plugin-wrapper {
+        padding: 10px;
+    }
+
+    .account-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .account-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .plugin-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
 }

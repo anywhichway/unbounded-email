@@ -47,9 +47,68 @@ function getEventsFromAccounts(userData) {
                         color: event.color || account.color || '#3174ad',
                         tags: event.tags || [],
                         recurrence: event.recurrence || null,
-                        reminders: event.reminders || []
+                        reminders: event.reminders || [],
+                        category: 'calendar'
                     };
                     events.push(normalizedEvent);
+                });
+            }
+
+            // Add snoozed emails as events
+            if (account.emails && Array.isArray(account.emails)) {
+                account.emails.forEach(email => {
+                    if (email.snoozed && typeof email.snoozed === 'string') {
+                        const snoozeDate = new Date(email.snoozed);
+                        if (!isNaN(snoozeDate.getTime())) {
+                            const normalizedEvent = {
+                                id: `snoozed-${email.id || Date.now()}`,
+                                title: `Snoozed: ${email.subject || 'No Subject'}`,
+                                description: email.preview || email.body?.substring(0, 100) || '',
+                                startDate: snoozeDate,
+                                endDate: snoozeDate,
+                                allDay: true,
+                                location: '',
+                                attendees: [],
+                                accountType: account.type || 'unknown',
+                                sourceAccount: accountEmail,
+                                color: '#ff6b6b', // Red color for snoozed emails
+                                tags: ['snoozed'],
+                                recurrence: null,
+                                reminders: [],
+                                category: 'snoozed-emails',
+                                originalEmail: email
+                            };
+                            events.push(normalizedEvent);
+                        }
+                    }
+                });
+            }
+
+            // Add scheduled contacts as events
+            if (account.contacts && Array.isArray(account.contacts)) {
+                account.contacts.forEach(contact => {
+                    if (contact.scheduled && contact.scheduledDate) {
+                        const scheduledDate = new Date(contact.scheduledDate);
+                        const normalizedEvent = {
+                            id: `contact-${contact.email}-${Date.now()}`,
+                            title: `Reach out to: ${contact.screenName || contact.email}`,
+                            description: `Scheduled contact reachout for ${contact.screenName || contact.email}`,
+                            startDate: scheduledDate,
+                            endDate: scheduledDate,
+                            allDay: true,
+                            location: '',
+                            attendees: [contact.email],
+                            accountType: account.type || 'unknown',
+                            sourceAccount: accountEmail,
+                            color: '#4ecdc4', // Teal color for contact reachouts
+                            tags: ['contact-reachout'],
+                            recurrence: null,
+                            reminders: [],
+                            category: 'contact-reachout',
+                            originalContact: contact
+                        };
+                        events.push(normalizedEvent);
+                    }
                 });
             }
         });

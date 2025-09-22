@@ -1,9 +1,9 @@
 /**
- * Baux.js Server Version - HTML string generation with reactivity for server-side rendering
+ * Lightview.js Server Version - HTML string generation with reactivity for server-side rendering
  * @license MIT
  * @version 1.0.0
  */
-export const Baux = () => {
+export const Lightview = () => {
     let activeEffect = null;
     const effectQueue = new Set();
     const changeListeners = new Map();
@@ -78,7 +78,7 @@ export const Baux = () => {
     const stateHandler = {
         get(target, property, receiver) {
             const value = Reflect.get(target, property, receiver);
-            if (typeof value === 'object' && value !== null && !value.__isBauxState && property !== '__dependencies' && property !== '__path') {
+            if (typeof value === 'object' && value !== null && !value.__isLightviewState && property !== '__dependencies' && property !== '__path') {
                 const currentPath = target.__path || '';
                 const newPath = currentPath ? `${currentPath}.${property}` : property;
                 const nestedProxy = new Proxy(value, stateHandler);
@@ -130,8 +130,8 @@ export const Baux = () => {
 
     const state = (initialState) => {
         if (initialState && typeof initialState === 'object') {
-            if(initialState.__isBauxState) return initialState;
-            Object.defineProperty(initialState, '__isBauxState', { value: true, enumerable: false });
+            if(initialState.__isLightviewState) return initialState;
+            Object.defineProperty(initialState, '__isLightviewState', { value: true, enumerable: false });
             Object.defineProperty(initialState, '__path', { value: '', enumerable: false, configurable: true });
         }
         return new Proxy(initialState, stateHandler);
@@ -223,13 +223,13 @@ export const Baux = () => {
                 const namedFuncMatch = funcStr.match(/^function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/);
                 if (namedFuncMatch) {
                     const funcName = namedFuncMatch[1];
-                    const refKey = `__BAUX_FUNC_REF__${funcName}__`;
+                    const refKey = `__Lightview_FUNC_REF__${funcName}__`;
                     registry.set(refKey, funcStr);
                     return refKey;
                 }
                 
                 // For unnamed functions, return a special marker with the function string
-                const funcId = `__BAUX_INLINE_FUNC__${Math.random().toString(36).substr(2, 9)}__`;
+                const funcId = `__Lightview_INLINE_FUNC__${Math.random().toString(36).substr(2, 9)}__`;
                 registry.set(funcId, funcStr);
                 return funcId;
             }
@@ -247,10 +247,10 @@ export const Baux = () => {
 
         // Generate function registry script
         const functionRegistryScript = Array.from(registry.entries()).map(([key, funcStr]) => {
-            if (key.startsWith('__BAUX_FUNC_REF__')) {
-                const funcName = key.replace('__BAUX_FUNC_REF__', '').replace('__', '');
+            if (key.startsWith('__Lightview_FUNC_REF__')) {
+                const funcName = key.replace('__Lightview_FUNC_REF__', '').replace('__', '');
                 return `${funcStr};`;
-            } else if (key.startsWith('__BAUX_INLINE_FUNC__')) {
+            } else if (key.startsWith('__Lightview_INLINE_FUNC__')) {
                 return `const ${key} = ${funcStr};`;
             }
             return '';
@@ -261,27 +261,27 @@ export const Baux = () => {
         
         // Replace function references with actual function references (unquoted)
         registry.forEach((funcStr, key) => {
-            if (key.startsWith('__BAUX_FUNC_REF__')) {
-                const funcName = key.replace('__BAUX_FUNC_REF__', '').replace('__', '');
+            if (key.startsWith('__Lightview_FUNC_REF__')) {
+                const funcName = key.replace('__Lightview_FUNC_REF__', '').replace('__', '');
                 descriptionStr = descriptionStr.replace(`"${key}"`, funcName);
-            } else if (key.startsWith('__BAUX_INLINE_FUNC__')) {
+            } else if (key.startsWith('__Lightview_INLINE_FUNC__')) {
                 descriptionStr = descriptionStr.replace(`"${key}"`,key);
             }
         });
 
         return '<script>' 
         + `(() => {
-            if(baux.debug) {
+            if(lightview.debug) {
                 debugger;
             }
             ${Array.from(states.entries()).map(([name, state]) => {
-                return `baux.state.register(${JSON.stringify(name)}, ${JSON.stringify(state)});`;
+                return `lightview.state.register(${JSON.stringify(name)}, ${JSON.stringify(state)});`;
             }).join('\n')}
             ${functionRegistryScript}
             const options = ${JSON.stringify(clientOptions)};
             options.replaceEl = document.currentScript.previousElementSibling;
-            ${stateObj ? `options.state = baux.state.get('${stateObj.__name}');` : ''}
-            baux.render(${descriptionStr}, options);
+            ${stateObj ? `options.state = lightview.state.get('${stateObj.__name}');` : ''}
+            lightview.render(${descriptionStr}, options);
             document.currentScript.remove();
         })();`
         + '<' + '/script>';
@@ -289,7 +289,7 @@ export const Baux = () => {
 
     async function render(description, options = {}, mode = "ssr-static") {
         if (!["ssr-static", "ssr-hydrate"].includes(mode)) {
-            throw new Error(`Baux Server: mode "${mode}" is not supported. Use "ssr-static" or "ssr-hydrate".`);
+            throw new Error(`Lightview Server: mode "${mode}" is not supported. Use "ssr-static" or "ssr-hydrate".`);
         }
 
         description = await description;
@@ -359,4 +359,4 @@ export const Baux = () => {
     return { render, state, tags };
 };
 
-export default Baux;
+export default Lightview;

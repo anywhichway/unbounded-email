@@ -9,21 +9,19 @@ function getContactsFromAccounts(userData) {
             // Add contacts from the account's contacts array
             if (account.contacts && Array.isArray(account.contacts)) {
                 account.contacts.forEach(contact => {
-                    const normalizedContact = {
-                        email: contact.email,
-                        screenName: contact.screenName || contact.email,
-                        phone: contact.phone || '',
-                        address: contact.address || '',
-                        accountType: account.type || 'unknown',
-                        sourceAccount: accountEmail,
-                        starred: contact.starred || false,
-                        frequentlyContacted: contact.frequentlyContacted || false,
-                        scheduled: contact.scheduled || false,
-                        scheduledDate: contact.scheduledDate || null,
-                        editingSchedule: false,
-                        tags: contact.tags || []
-                    };
-                    contacts.push(normalizedContact);
+                    // Normalize the original contact object in place
+                    contact.screenName ||= contact.email;
+                    contact.phone ||= contact.phone || '';
+                    contact.address ||= '';
+                    contact.accountType ||= account.type || 'unknown';
+                    contact.sourceAccount ||= accountEmail;
+                    contact.starred ||= false;
+                    contact.frequentlyContacted ||= false;
+                    contact.scheduled ||= false;
+                    contact.scheduledDate ||= null;
+                    contact.editingSchedule ||= false;
+                    contact.tags ||= [];
+                    contacts.push(contact);
                 });
             }
         });

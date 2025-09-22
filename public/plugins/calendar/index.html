@@ -5,9 +5,11 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
         <link rel="stylesheet" href="../index.css">
         <link rel="stylesheet" href="./index.css">
-        <script src="../../assets/js/lightview-iframe.js"></script>
-        <script src="../../assets/js/baux-browser.js"></script>
-        <script>const {render, state} = Baux("browser");</script>
+        <script src="../../assets/js/lightview.js"></script>
+        <script>
+            const lightview = Lightview("browser");
+            const {render, state} = Lightview("browser");
+        </script>
         <script src="./index.js"></script>
         <script src="./calendar.js"></script>
         <script src="./events.js"></script>
@@ -15,8 +17,7 @@
     </head>
     <body>
          <script type="module" id="init">
-            const {local} = lvIFrame;
-            const {user, ui, navigate} = await local(lvIFrame.import("./"));
+            const {user, ui} = await lightview.import("./");
 
             const events = getEventsFromAccounts(user);
 
@@ -26,7 +27,12 @@
 
             // Get unique tags from events
             const tags = [...new Set(events.flatMap(e => e.tags || []))];
-            const tagIcons = ui.tagIcons || {};
+            const tagIcons = {
+                ...ui.tagIcons,
+                snoozed: "fas fa-clock",
+                scheduled: "fas fa-calendar-alt",
+                "contact-reachout": "fas fa-user-friends"
+            };
 
             // Reactive state for filtering and UI
             const appState = state({

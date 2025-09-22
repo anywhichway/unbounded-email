@@ -5,32 +5,73 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
         <link rel="stylesheet" href="../index.css">
         <link rel="stylesheet" href="./index.css">
-        <script src="../../assets/js/lightview-iframe.js"></script>
-        <script src="../../assets/js/baux-browser.js"></script>
-        <script>const {render, state} = Baux("browser");</script>
-        <script src="./index.js"></script>
+        <!--script src="../../assets/js/lightview-iframe.js"></script-->
+        <script src="../../assets/js/lightview.js"></script>
+        <script>
+            const lightview = Lightview("browser");
+            const {render, state} = lightview;
+        </script>
+        <!--script src="./index.js"></script-->
         <script src="./contact.js"></script>
         <script src="./contacts.js"></script>
         <script src="./folder-item.js"></script>
     </head>
     <body>
          <script type="module" id="init">
-            const {local} = lvIFrame;
-            const {user, ui, navigate} = await local(lvIFrame.import("./"));
-            
-            const contacts = getContactsFromAccounts(user);
+            const {user, ui} = await lightview.import("../", { publish: true, subscribe: true});
             
             // Get user accounts from user structure
             const userAccounts = user.accounts || {};
             const accountEmails = Object.keys(userAccounts);
 
-            // Get unique tags from contacts
-            const tags = [...new Set(contacts.flatMap(c => c.tags || []))];
+            // Get unique tags from contacts (computed dynamically)
             const tagIcons = ui.tagIcons || {};
+            
+            // Function to get all contacts as references (no flattening or copying)
+            // This returns original contact objects from user.accounts to maintain reactivity
+            function getAllContacts(user) {
+                // flatMap is used here to flatten the nested structure:
+                // user.accounts is an object with account emails as keys, each containing a contacts array
+                // We need to flatten all contacts into a single array for UI rendering and filtering
+                // But we return REFERENCES to the original objects, not copies, to preserve reactivity
+                // Modified to include accountEmail for accurate filtering
+                return Object.entries(user.accounts).flatMap(([accountEmail, account]) => 
+                    (account.contacts || []).map(contact => ({ contact, accountEmail }))
+                );
+            }
+
+            // Function to compute filtered contacts reactively (no copies)
+            function updateFilteredContacts(user) {
+                const allContacts = getAllContacts(user);
+                appState.filteredContacts = allContacts.filter(({ contact, accountEmail }) => {
+                    // First filter by account if one is selected
+                    if (appState.currentAccount && accountEmail !== appState.currentAccount) {
+                        return false;
+                    }
+                    
+                    // Then apply additional filters based on current selection
+                    if (appState.currentTag) {
+                        return contact.tags && contact.tags.includes(appState.currentTag);
+                    } else if (appState.currentFolder) {
+                        const lowerCaseFolder = appState.currentFolder.toLowerCase();
+                        switch (lowerCaseFolder) {
+                            case 'starred':
+                                return contact.starred;
+                            case 'frequently contacted':
+                                return contact.frequentlyContacted;
+                            case 'scheduled':
+                                return contact.scheduled;
+                            default:
+                                return true;
+                        }
+                    }
+                    
+                    return true;
+                }).map(({ contact }) => contact); // Extract just the contact for appState.filteredContacts
+            }
 
             // Reactive state for filtering and UI
             const appState = state({
-                contacts: contacts,
                 tagIcons: tagIcons,
                 user: user,
                 currentAccount: null,
@@ -38,36 +79,7 @@
                 currentFolder: null,
                 selectedFolderId: 'folder-All Contacts',
                 editingContact: null,
-                get filteredContacts() {
-                    let filtered = this.contacts;
-                    
-                    // First filter by account if one is selected
-                    if (this.currentAccount) {
-                        filtered = filtered.filter(c => c.sourceAccount === this.currentAccount);
-                    }
-                    
-                    // Then apply additional filters based on current selection
-                    if (this.currentTag) {
-                        filtered = filtered.filter(c => c.tags && c.tags.includes(this.currentTag));
-                    } else if (this.currentFolder) {
-                        const lowerCaseFolder = this.currentFolder.toLowerCase();
-                        switch (lowerCaseFolder) {
-                            case 'starred':
-                                filtered = filtered.filter(c => c.starred);
-                                break;
-                            case 'frequently contacted':
-                                filtered = filtered.filter(c => c.frequentlyContacted);
-                                break;
-                            case 'scheduled':
-                                filtered = filtered.filter(c => c.scheduled);
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                    
-                    return filtered;
-                },
+                filteredContacts: [], // Will be computed from user.accounts (references, no copies)
                 selectFolder(folderType, value) {
                     if (folderType === 'account') {
                         appState.currentAccount = value;
@@ -86,13 +98,20 @@
                         }
                         appState.selectedFolderId = `folder-${value}`;
                     }
+                    // Update filtered contacts after selection change
+                    updateFilteredContacts(appState.user);
                 }
             });
+            appState.user.tagIcons = JSON.parse(JSON.stringify(tagIcons)); // Ensure reactivity by breaking references
+            appState.user.testChange = (user.testChange || 0) + 1; // Dummy property to trigger reactivity
+
+            // Initial setup - compute filtered contacts
+            updateFilteredContacts(user);
 
             // Prepare folder data for dynamic generation
             const folderData = {
                 accountEmails,
-                tags: [],
+                tags: [],  // Will be populated dynamically if needed
                 tagIcons: {}
             };
 

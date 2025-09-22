@@ -26,7 +26,7 @@ const Contact = async (contact, appState) => {
                 attributes: {
                     class: "contact-avatar"
                 },
-                children: () => {
+                children() {
                     if (contact.avatar) {
                         return [{
                             tagName: "img",
@@ -189,50 +189,12 @@ const Contact = async (contact, appState) => {
                     class: "schedule-container"
                 },
                 children: [
-                    // Date display (shown when contact has a scheduled date and not editing)
-                    {
-                        tagName: "div",
-                        attributes: {
-                            class: "schedule-date",
-                            style() {
-                                return (contact.scheduledDate && !contact.editingSchedule) ? "display: flex;" : "display: none;";
-                            },
-                            onclick(event) {
-                                event.stopPropagation();
-                                contact.editingSchedule = true;
-                                // Trigger re-render
-                                appState.contacts = [...appState.contacts];
-                            }
-                        },
-                        children: [
-                            {
-                                tagName: "span",
-                                attributes: {
-                                    class: "date-text"
-                                },
-                                children: [() => contact.scheduledDate ? formatScheduleDate(contact.scheduledDate) : ""]
-                            },
-                            {
-                                tagName: "button",
-                                attributes: {
-                                    class: "clear-date-btn",
-                                    onclick(event) {
-                                        event.stopPropagation();
-                                        clearContactSchedule(contact, appState);
-                                    },
-                                    title: "Clear schedule"
-                                },
-                                children: ["×"]
-                            }
-                        ]
-                    },
-                    // Calendar input (shown when editing)
                     {
                         tagName: "div",
                         attributes: {
                             class: "schedule-input-container",
                             style() {
-                                return contact.editingSchedule ? "display: flex;" : "display: none;";
+                                return contact.editingSchedule || contact.scheduledDate ? "display: flex;" : "display: none;";
                             }
                         },
                         children: [
@@ -258,14 +220,12 @@ const Contact = async (contact, appState) => {
                                         // If no date was set, go back to icon
                                         if (!event.target.value) {
                                             contact.editingSchedule = false;
-                                            appState.contacts = [...appState.contacts];
                                         }
                                     },
                                     onkeydown(event) {
                                         // Allow Escape to cancel editing
                                         if (event.key === 'Escape') {
                                             contact.editingSchedule = false;
-                                            appState.contacts = [...appState.contacts];
                                             event.preventDefault();
                                         }
                                         // Allow Enter to confirm
@@ -291,20 +251,11 @@ const Contact = async (contact, appState) => {
                             onclick(event) {
                                 event.stopPropagation();
                                 contact.editingSchedule = true;
-                                // Trigger re-render
-                                appState.contacts = [...appState.contacts];
-                                // Focus the input after re-render
-                                setTimeout(() => {
-                                    const contactItem = event.target.closest('.contact-item');
-                                    const input = contactItem.querySelector('.schedule-input');
-                                    if (input) {
-                                        input.focus();
-                                        // Show the calendar picker if available
-                                        if (input.showPicker) {
-                                            input.showPicker();
-                                        }
-                                    }
-                                }, 10);
+                                const contactItem = event.target.closest('.contact-item');
+                                const input = contactItem.querySelector('.schedule-input');
+                                if (input) {
+                                    input.focus();
+                                }
                             }
                         },
                         children: [
@@ -505,10 +456,14 @@ function handleTagInputKeydown(event, contact, appState) {
 function getAllAvailableTags(appState) {
     const tags = new Set();
     
-    // Add tags from all contacts
-    appState.contacts.forEach(contact => {
-        if (contact.tags) {
-            contact.tags.forEach(tag => tags.add(tag));
+    // Add tags from all contacts in user.accounts
+    Object.values(appState.user.accounts).forEach(account => {
+        if (account.contacts) {
+            account.contacts.forEach(contact => {
+                if (contact.tags) {
+                    contact.tags.forEach(tag => tags.add(tag));
+                }
+            });
         }
     });
     
@@ -533,47 +488,24 @@ function addTagToContact(contact, tag, appState) {
     // Add tag to contact
     contact.tags = [...contact.tags, normalizedTag];
     
-    // Find the contact in the original contacts array and update it
-    const contactIndex = appState.contacts.findIndex(c => 
-        c.email === contact.email && c.sourceAccount === contact.sourceAccount
-    );
-    
-    if (contactIndex !== -1) {
-        if (!appState.contacts[contactIndex].tags) {
-            appState.contacts[contactIndex].tags = [];
-        }
-        appState.contacts[contactIndex].tags = contact.tags;
-    }
-    
-    // Update the original user data to persist the change
-    if (appState.user && appState.user.accounts && appState.user.accounts[contact.sourceAccount]) {
-        const userContactIndex = appState.user.accounts[contact.sourceAccount].contacts.findIndex(c => 
-            c.email === contact.email
-        );
-        if (userContactIndex !== -1) {
-            if (!appState.user.accounts[contact.sourceAccount].contacts[userContactIndex].tags) {
-                appState.user.accounts[contact.sourceAccount].contacts[userContactIndex].tags = [];
-            }
-            appState.user.accounts[contact.sourceAccount].contacts[userContactIndex].tags = contact.tags;
-        }
-    }
     
     // Update the global tag list and folder data
     updateGlobalTags(appState);
-    
-    // Trigger a re-render by updating the state
-    appState.contacts = [...appState.contacts];
     
     console.log(`Added tag "${normalizedTag}" to contact ${contact.email}`);
 }
 
 // Function to update global tags and folder data
 function updateGlobalTags(appState) {
-    // Get all unique tags from all contacts
+    // Get all unique tags from all contacts in user.accounts
     const allTags = new Set();
-    appState.contacts.forEach(contact => {
-        if (contact.tags) {
-            contact.tags.forEach(tag => allTags.add(tag));
+    Object.values(appState.user.accounts).forEach(account => {
+        if (account.contacts) {
+            account.contacts.forEach(contact => {
+                if (contact.tags) {
+                    contact.tags.forEach(tag => allTags.add(tag));
+                }
+            });
         }
     });
     
@@ -581,13 +513,13 @@ function updateGlobalTags(appState) {
     
     // Update tagIcons if needed (add default icon for new tags)
     uniqueTags.forEach(tag => {
-        if (!appState.tagIcons[tag]) {
-            appState.tagIcons[tag] = "fas fa-tag";
+        if (!appState.user.tagIcons[tag]) {
+            appState.user.tagIcons[tag] = "fas fa-tag";
         }
     });
     
     // Force reactivity update by modifying the tagIcons object
-    appState.tagIcons = { ...appState.tagIcons };
+    appState.user.tagIcons = { ...appState.user.tagIcons };
     
     console.log('Updated global tags:', uniqueTags);
 }
@@ -602,36 +534,8 @@ function removeTagFromContact(contact, tagToRemove, appState) {
     // Remove the tag from the contact's tags array
     contact.tags = contact.tags.filter(tag => tag !== tagToRemove);
     
-    // Find the contact in the original contacts array and update it
-    const contactIndex = appState.contacts.findIndex(c => 
-        c.email === contact.email && c.sourceAccount === contact.sourceAccount
-    );
-    
-    if (contactIndex !== -1) {
-        if (!appState.contacts[contactIndex].tags) {
-            appState.contacts[contactIndex].tags = [];
-        }
-        appState.contacts[contactIndex].tags = contact.tags;
-    }
-    
-    // Update the original user data to persist the change
-    if (appState.user && appState.user.accounts && appState.user.accounts[contact.sourceAccount]) {
-        const userContactIndex = appState.user.accounts[contact.sourceAccount].contacts.findIndex(c => 
-            c.email === contact.email
-        );
-        if (userContactIndex !== -1) {
-            if (!appState.user.accounts[contact.sourceAccount].contacts[userContactIndex].tags) {
-                appState.user.accounts[contact.sourceAccount].contacts[userContactIndex].tags = [];
-            }
-            appState.user.accounts[contact.sourceAccount].contacts[userContactIndex].tags = contact.tags;
-        }
-    }
-    
     // Update the global tag list and folder data
     updateGlobalTags(appState);
-    
-    // Trigger a re-render by updating the state
-    appState.contacts = [...appState.contacts];
     
     console.log(`Removed tag "${tagToRemove}" from contact ${contact.email}`);
 }
@@ -640,23 +544,12 @@ function removeTagFromContact(contact, tagToRemove, appState) {
 function toggleContactStar(contact, appState) {
     // Toggle the starred state
     contact.starred = !contact.starred;
-    
-    // Find the contact in the original contacts array and update it
-    const contactIndex = appState.contacts.findIndex(c => 
-        c.email === contact.email && c.sourceAccount === contact.sourceAccount
-    );
-    
-    if (contactIndex !== -1) {
-        appState.contacts[contactIndex].starred = contact.starred;
-    }
-    
-    // Trigger a re-render by updating the state
-    appState.contacts = [...appState.contacts];
-    
     console.log(`Contact ${contact.email} ${contact.starred ? 'starred' : 'unstarred'}`);
 }
 
 // Function to set the contact schedule with a specific date/time
+// Since contact is now a reference to the original object in user.accounts,
+// changes here will propagate back to the parent window via reactivity
 function setContactSchedule(contact, appState, dateTimeValue) {
     if (dateTimeValue) {
         contact.scheduled = true;
@@ -669,20 +562,6 @@ function setContactSchedule(contact, appState, dateTimeValue) {
     // Always exit editing mode when setting a schedule
     contact.editingSchedule = false;
     
-    // Find the contact in the original contacts array and update it
-    const contactIndex = appState.contacts.findIndex(c => 
-        c.email === contact.email && c.sourceAccount === contact.sourceAccount
-    );
-    
-    if (contactIndex !== -1) {
-        appState.contacts[contactIndex].scheduled = contact.scheduled;
-        appState.contacts[contactIndex].scheduledDate = contact.scheduledDate;
-        appState.contacts[contactIndex].editingSchedule = false;
-    }
-    
-    // Trigger a re-render by updating the state
-    appState.contacts = [...appState.contacts];
-    
     console.log(`Contact ${contact.email} scheduled for ${dateTimeValue || 'unscheduled'}`);
 }
 
@@ -691,20 +570,6 @@ function clearContactSchedule(contact, appState) {
     contact.scheduled = false;
     contact.scheduledDate = null;
     contact.editingSchedule = false;
-    
-    // Find the contact in the original contacts array and update it
-    const contactIndex = appState.contacts.findIndex(c => 
-        c.email === contact.email && c.sourceAccount === contact.sourceAccount
-    );
-    
-    if (contactIndex !== -1) {
-        appState.contacts[contactIndex].scheduled = false;
-        appState.contacts[contactIndex].scheduledDate = null;
-        appState.contacts[contactIndex].editingSchedule = false;
-    }
-    
-    // Trigger a re-render by updating the state
-    appState.contacts = [...appState.contacts];
     
     console.log(`Contact ${contact.email} schedule cleared`);
 }

@@ -4,16 +4,19 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Unbounded Email</title>
-        <script src="./assets/js/lightview-core.js"></script>
+        <!--script src="./assets/js/lightview-core.js"></script>
         <script src="./assets/js/lightview-dom.js"></script>
         <script src="./assets/js/lightview-href.js"></script>
-        <script src="./assets/js/lightview-iframe.js"></script>
+        <script src="./assets/js/lightview-iframe.js"></script-->
         <script src="./assets/js/lightview.js"></script>
+        <script>
+            const lightview = Lightview("browser");
+            const {render, state, local} = lightview;
+        </script>
         <link rel="stylesheet" href="./index.css">
     </head>
     <body>
         <script type="module" id="init">
-            const {render,state} = Lightview("dom");
             const master = await fetch("./assets/data/index.json").then(r => r.json());
             master.user.addContact = function(contact) {
                 this.push(contact);
@@ -21,6 +24,7 @@
             master.user.removeContact = function(contactId) {
                 
             }
+            await lightview.export(master, { publish: true, subscribe: true });
             await render({
                 tagName: "div",
                 attributes: {
@@ -52,7 +56,7 @@
                                     id: "pluginView",
                                     src: "./plugins/index.html",
                                     onchange(event) {
-                                         lvIFrame.export(master);
+                                         lightview.export(master);
                                     }
                                 }
                             }
@@ -74,7 +78,7 @@
                     pluginView.src = resolvedUrl;
                 }
             };
-            await lvIFrame.export(master);
+            
         </script>
     </body>
 </html>

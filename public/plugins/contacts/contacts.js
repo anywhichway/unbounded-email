@@ -1,4 +1,4 @@
-const Contacts = async (state, folderData) => {
+const Contacts = async (appState, folderData) => {
     return render({
         tagName: "div",
         attributes: {
@@ -15,7 +15,7 @@ const Contacts = async (state, folderData) => {
                         tagName: "h1",
                         children() {
                             const parts = ["Contacts"];
-                            if (state.currentAccount) {
+                            if (appState.currentAccount) {
                                 parts.push(" - ");
                                 parts.push({
                                     tagName: 'a',
@@ -23,10 +23,10 @@ const Contacts = async (state, folderData) => {
                                         href: '#',
                                         onclick(event) {
                                             event.preventDefault();
-                                            navigate('../account/index.html?account=' + encodeURIComponent(state.currentAccount), window.location.href);
+                                            navigate('../account/index.html?account=' + encodeURIComponent(appState.currentAccount), window.location.href);
                                         }
                                     },
-                                    children: [state.currentAccount]
+                                    children: [appState.currentAccount]
                                 });
                             }
                             return parts;
@@ -39,7 +39,7 @@ const Contacts = async (state, folderData) => {
                         },
                         children: [() => {
                             // Use the getter which computes filtered contacts
-                            const count = state.filteredContacts.length;
+                            const count = appState.filteredContacts.length;
                             return `${count} contact${count !== 1 ? 's' : ''}`;
                         }]
                     }
@@ -57,12 +57,12 @@ const Contacts = async (state, folderData) => {
                             class: "plugin-sidebar"
                         },
                         async children() {
-                            // Generate folder items dynamically based on current state
-                            const accountEmails = Object.keys(state.user?.accounts || {});
+                            // Generate folder items dynamically based on current appState
+                            const accountEmails = Object.keys(appState.user?.accounts || {});
                             
-                            // Get all unique tags from current contacts
+                            // Get all unique tags from current filtered contacts
                             const allTags = new Set();
-                            state.contacts.forEach(contact => {
+                            appState.filteredContacts.forEach(contact => {
                                 if (contact.tags) {
                                     contact.tags.forEach(tag => allTags.add(tag));
                                 }
@@ -71,21 +71,21 @@ const Contacts = async (state, folderData) => {
                             
                             const folderItems = await Promise.all([
                                 // All Contacts folder
-                                FolderItem({ folder: { name: "All Contacts", icon: "fas fa-users" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "All Contacts", icon: "fas fa-users" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
                                 // All Contacts subfolders (accounts)
                                 ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email =>
-                                    FolderItem({ folder: { email: email, name: email, icon: "fas fa-envelope" }, isSubfolder: true, accountEmail: email, tagName: null, appState: state })
+                                    FolderItem({ folder: { email: email, name: email, icon: "fas fa-envelope" }, isSubfolder: true, accountEmail: email, tagName: null, appState })
                                 )) : []),
                                 // Categories folder
-                                FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
                                 // Categories subfolders (tags)
                                 ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
-                                    FolderItem({ folder: { name: tag.charAt(1).toUpperCase() + tag.slice(2), originalTag: tag, icon: state.tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
+                                    FolderItem({ folder: { name: tag.charAt(1).toUpperCase() + tag.slice(2), originalTag: tag, icon: appState.tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState })
                                 )) : []),
                                 // Other folders
-                                FolderItem({ folder: { name: "Starred", icon: "fas fa-star" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Frequently Contacted", icon: "fas fa-history" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Scheduled", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state })
+                                FolderItem({ folder: { name: "Starred", icon: "fas fa-star" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
+                                FolderItem({ folder: { name: "Frequently Contacted", icon: "fas fa-history" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
+                                FolderItem({ folder: { name: "Scheduled", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: null, appState })
                             ]);
                             
                             return folderItems;
@@ -104,10 +104,10 @@ const Contacts = async (state, folderData) => {
                                 },
                                 async children() {
                                     // Use the getter which computes filtered contacts
-                                    const filteredContacts = state.filteredContacts;
+                                    const filteredContacts = appState.filteredContacts;
                                     
                                     if (filteredContacts.length > 0) {
-                                        return await Promise.all(filteredContacts.map(contact => Contact(contact, state)));
+                                        return await Promise.all(filteredContacts.map(contact => Contact(contact, appState)));
                                     } else {
                                         return [{
                                             tagName: "div",
@@ -124,7 +124,7 @@ const Contacts = async (state, folderData) => {
                 ]
             },
             // Edit Contact Dialog (always rendered but hidden by default)
-            EditContactDialog(state)
+            EditContactDialog(appState)
         ]
     });
 }
@@ -132,9 +132,9 @@ const Contacts = async (state, folderData) => {
 // Edit Contact Dialog Component
 function EditContactDialog(appState) {
     // Always render but hidden by CSS by default
-    // Use first contact as default or create empty contact object
-    const contact = (appState && appState.contacts && appState.contacts.length > 0) 
-        ? appState.contacts[0] 
+    // Use first filtered contact as default or create empty contact object
+    const contact = (appState && appState.filteredContacts && appState.filteredContacts.length > 0) 
+        ? appState.filteredContacts[0] 
         : {
             avatar: '',
             screenName: '',
@@ -364,7 +364,7 @@ function EditContactDialog(appState) {
                                         const appState = dialog._appState;
                                         
                                         if (contact && appState) {
-                                            saveContactEditsProcedural(dialog, contact, appState);
+                                            saveContactEdits(dialog, contact, appState);
                                             dialog.style.display = 'none';
                                         }
                                     }
@@ -380,7 +380,7 @@ function EditContactDialog(appState) {
 }
 
 // Function to save contact edits from dialog (procedural approach)
-function saveContactEditsProcedural(dialog, contact, appState) {
+function saveContactEdits(dialog, contact, appState) {
     // Get the form values from the dialog
     const avatarInput = dialog.querySelector('#dialog-avatar');
     const nameInput = dialog.querySelector('#dialog-name');
@@ -397,16 +397,9 @@ function saveContactEditsProcedural(dialog, contact, appState) {
     contact.address = addressInput ? addressInput.value : contact.address;
     contact.notes = notesInput ? notesInput.value : contact.notes;
     
-    // Find and update in appState.contacts
-    const contactIndex = appState.contacts.findIndex(c => 
-        c.email === contact.email && c.sourceAccount === contact.sourceAccount
-    );
-    if (contactIndex !== -1) {
-        appState.contacts[contactIndex] = { ...contact };
-    }
-    
-    // Trigger re-render
-    appState.contacts = [...appState.contacts];
+    // Since contact is now a reference to the original object in user.accounts,
+    // changes here will automatically propagate back to the parent window via reactivity
+    // No need to manually update appState.contacts
     
     console.log(`Contact ${contact.email} updated`);
 }

@@ -42,7 +42,8 @@ html, body {
     display: flex;
     gap: 20px;
     flex: 1;
-    min-height: 0; /* prevent flex item from overflowing */
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .plugin-sidebar {
