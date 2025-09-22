@@ -66,7 +66,7 @@ const Lightview = () => {
         
         // Reuse existing _id if present, otherwise generate
         if (!obj._id) {
-            Object.defineProperty(obj, '_id', { value: generateProxyId(), enumerable: true, configurable: true });
+            Object.defineProperty(obj, '_id', { value: generateProxyId(), enumerable: false, configurable: true });
         }
         
         // Propagate __publish if provided
@@ -550,9 +550,12 @@ const Lightview = () => {
     if (Array.isArray(obj)) return obj.map(item => makeSerializable(item));
 
     const out = {};
+    if(obj._id!==undefined) {
+        out._id = obj._id;
+    }
     for (const k of Object.keys(obj)) {
       // Skip internal properties and functions
-      if (k.startsWith('__') || typeof obj[k] === 'function') continue;
+      if (k==="_id" || k.startsWith('__') || typeof obj[k] === 'function') continue;
       out[k] = makeSerializable(obj[k]);
     }
     return out;
