@@ -1,4 +1,4 @@
-const Emails = async (state, folderData) => {
+const Emails = async (state) => {
     return render({
         tagName: "div",
         attributes: {
@@ -58,7 +58,7 @@ const Emails = async (state, folderData) => {
                         },
                         async children() {
                             // Generate folder items dynamically based on current state
-                            const accountEmails = Object.keys(state.user?.accounts || {});
+                            const accountEmails = Object.keys(state.user?.accounts || {}).filter(key => !key.startsWith('_'));
 
                             // Get all unique tags from current emails
                             const allTags = new Set();
@@ -69,26 +69,40 @@ const Emails = async (state, folderData) => {
                             });
                             const tags = Array.from(allTags).sort();
 
+                            // Check for dynamic folders based on email properties
+                            const hasStarred = state.emails.some(e => e.starred);
+                            const hasSnoozed = state.emails.some(e => e.snoozed);
+                            const hasScheduled = state.emails.some(e => e.scheduled);
+
+                            // Categories subfolders (tags and dynamic property-based folders)
+                            const categorySubfolders = [
+                                ...(tags.length > 0 ? tags.map(tag => ({
+                                    name: tag.charAt(1).toUpperCase() + tag.slice(2),
+                                    tagName: tag,
+                                    icon: state.tagIcons[tag] || "fas fa-tag"
+                                })) : []),
+                                ...(hasStarred ? [{ name: "Starred", tagName: "starred", icon: "fas fa-star" }] : []),
+                                ...(hasSnoozed ? [{ name: "Snoozed", tagName: "snoozed", icon: "fas fa-clock" }] : []),
+                                ...(hasScheduled ? [{ name: "Scheduled", tagName: "scheduled", icon: "fas fa-calendar-alt" }] : [])
+                            ];
+
                             const folderItems = await Promise.all([
                                 // Inbox folder
                                 FolderItem({ folder: { name: "Inbox", icon: "fas fa-inbox" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 // Inbox subfolders (accounts)
                                 ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email =>
-                                    FolderItem({ folder: { email: email, name: email, icon: "fas fa-envelope" }, isSubfolder: true, accountEmail: email, tagName: null, appState: state })
+                                    FolderItem({ folder: { email: email, name: email, icon: state.getAccountIconClass(email) }, isSubfolder: true, accountEmail: email, tagName: null, appState: state })
                                 )) : []),
                                 // Other standard email folders
-                                FolderItem({ folder: { name: "Starred", icon: "fas fa-star" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Snoozed", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Scheduled", icon: "fas fa-calendar-alt" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 FolderItem({ folder: { name: "Drafts", icon: "fas fa-edit" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 FolderItem({ folder: { name: "Sent", icon: "fas fa-paper-plane" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 FolderItem({ folder: { name: "Spam", icon: "fas fa-exclamation-triangle" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 FolderItem({ folder: { name: "Trash", icon: "fas fa-trash" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 // Categories folder
                                 FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                // Categories subfolders (tags)
-                                ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
-                                    FolderItem({ folder: { name: tag.charAt(1).toUpperCase() + tag.slice(2), originalTag: tag, icon: state.tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
+                                // Categories subfolders
+                                ...(categorySubfolders.length > 0 ? await Promise.all(categorySubfolders.map(item =>
+                                    FolderItem({ folder: { name: item.name, icon: item.icon }, isSubfolder: true, accountEmail: null, tagName: item.tagName, appState: state })
                                 )) : [])
                             ]);
 

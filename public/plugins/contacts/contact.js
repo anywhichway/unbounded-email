@@ -186,75 +186,148 @@ const Contact = async (contact, appState) => {
             {
                 tagName: "div",
                 attributes: {
-                    class: "schedule-container"
+                    class: "contact-actions"
                 },
                 children: [
+                    // Star icon
                     {
                         tagName: "div",
                         attributes: {
-                            class: "schedule-input-container",
-                            style() {
-                                return contact.editingSchedule || contact.scheduledDate ? "display: flex;" : "display: none;";
+                            class: "star-icon",
+                            onclick(event) {
+                                event.stopPropagation();
+                                toggleContactStar(contact, appState);
                             }
                         },
                         children: [
                             {
-                                tagName: "input",
+                                tagName: "i",
                                 attributes: {
-                                    type: "datetime-local",
-                                    class: "schedule-input",
-                                    value() {
-                                        return contact.scheduledDate || "";
-                                    },
-                                    min() {
-                                        // Set minimum to current date/time
-                                        const now = new Date();
-                                        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                                        return now.toISOString().slice(0, 16);
-                                    },
-                                    onchange(event) {
-                                        setContactSchedule(contact, appState, event.target.value);
-                                        contact.editingSchedule = false;
-                                    },
-                                    onblur(event) {
-                                        // If no date was set, go back to icon
-                                        if (!event.target.value) {
-                                            contact.editingSchedule = false;
-                                        }
-                                    },
-                                    onkeydown(event) {
-                                        // Allow Escape to cancel editing
-                                        if (event.key === 'Escape') {
-                                            contact.editingSchedule = false;
-                                            event.preventDefault();
-                                        }
-                                        // Allow Enter to confirm
-                                        if (event.key === 'Enter') {
-                                            event.target.blur();
-                                        }
-                                    },
-                                    onclick(event) {
-                                        event.stopPropagation();
+                                    class() {
+                                        return contact.starred ? "fas fa-star starred" : "far fa-star";
                                     }
                                 }
                             }
                         ]
                     },
-                    // Calendar icon (shown when no date is set and not editing)
+                    // Schedule container
                     {
                         tagName: "div",
                         attributes: {
-                            class: "calendar-icon",
-                            style() {
-                                return (!contact.scheduledDate && !contact.editingSchedule) ? "display: flex;" : "display: none;";
+                            class: "schedule-container"
+                        },
+                        children: [
+                            {
+                                tagName: "div",
+                                attributes: {
+                                    class: "schedule-input-container",
+                                    style() {
+                                        return contact.editingSchedule || contact.scheduledDate ? "display: flex;" : "display: none;";
+                                    }
+                                },
+                                children: [
+                                    {
+                                        tagName: "input",
+                                        attributes: {
+                                            type: "datetime-local",
+                                            class: "schedule-input",
+                                            value() {
+                                                return contact.scheduledDate || "";
+                                            },
+                                            min() {
+                                                // Set minimum to current date/time
+                                                const now = new Date();
+                                                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                                                return now.toISOString().slice(0, 16);
+                                            },
+                                            onchange(event) {
+                                                setContactSchedule(contact, appState, event.target.value);
+                                                contact.editingSchedule = false;
+                                            },
+                                            onblur(event) {
+                                                // If no date was set, go back to icon
+                                                if (!event.target.value) {
+                                                    contact.editingSchedule = false;
+                                                }
+                                            },
+                                            onkeydown(event) {
+                                                // Allow Escape to cancel editing
+                                                if (event.key === 'Escape') {
+                                                    contact.editingSchedule = false;
+                                                    event.preventDefault();
+                                                }
+                                                // Allow Enter to confirm
+                                                if (event.key === 'Enter') {
+                                                    event.target.blur();
+                                                }
+                                            },
+                                            onclick(event) {
+                                                event.stopPropagation();
+                                            }
+                                        }
+                                    }
+                                ]
                             },
+                            // Calendar icon (shown when no date is set and not editing)
+                            {
+                                tagName: "div",
+                                attributes: {
+                                    class: "calendar-icon",
+                                    style() {
+                                        return (!contact.scheduledDate && !contact.editingSchedule) ? "display: flex;" : "display: none;";
+                                    },
+                                    onclick(event) {
+                                        event.stopPropagation();
+                                        contact.editingSchedule = true;
+                                        const contactItem = event.target.closest('.contact-item');
+                                        const input = contactItem.querySelector('.schedule-input');
+                                        if (input) {
+                                            input.focus();
+                                        }
+                                    }
+                                },
+                                children: [
+                                    {
+                                        tagName: "i",
+                                        attributes: {
+                                            class: "far fa-calendar"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    // Edit icon
+                    {
+                        tagName: "div",
+                        attributes: {
+                            class: "edit-icon",
                             onclick(event) {
                                 event.stopPropagation();
-                                contact.editingSchedule = true;
-                                const contactItem = event.target.closest('.contact-item');
-                                const input = contactItem.querySelector('.schedule-input');
-                                if (input) {
-                                    input.focus();
+                                
+                                // Show dialog procedurally
+                                const dialog = document.querySelector('.dialog-overlay');
+                                if (dialog) {
+                                    dialog.style.display = 'flex';
+                                    
+                                    // Populate form fields with contact data
+                                    const avatarInput = dialog.querySelector('#dialog-avatar');
+                                    const nameInput = dialog.querySelector('#dialog-name');
+                                    const phoneInput = dialog.querySelector('#dialog-phone');
+                                    const emailInput = dialog.querySelector('#dialog-email');
+                                    const addressInput = dialog.querySelector('#dialog-address');
+                                    const notesInput = dialog.querySelector('#dialog-notes');
+                                    
+                                    if (avatarInput) avatarInput.value = contact.avatar || '';
+                                    if (nameInput) nameInput.value = contact.screenName || '';
+                                    if (phoneInput) phoneInput.value = contact.phone || '';
+                                    if (emailInput) emailInput.value = contact.email || '';
+                                    if (addressInput) addressInput.value = contact.address || '';
+                                    if (notesInput) notesInput.value = contact.notes || '';
+                                    
+                                    // Store reference to current contact for saving
+                                    dialog._currentContact = contact;
+                                    dialog._appState = appState;
                                 }
                             }
                         },
@@ -262,72 +335,10 @@ const Contact = async (contact, appState) => {
                             {
                                 tagName: "i",
                                 attributes: {
-                                    class: "far fa-calendar"
+                                    class: "fas fa-pencil-alt"
                                 }
                             }
                         ]
-                    }
-                ]
-            },
-            {
-                tagName: "div",
-                attributes: {
-                    class: "star-icon",
-                    onclick(event) {
-                        event.stopPropagation();
-                        toggleContactStar(contact, appState);
-                    }
-                },
-                children: [
-                    {
-                        tagName: "i",
-                        attributes: {
-                            class() {
-                                return contact.starred ? "fas fa-star starred" : "far fa-star";
-                            }
-                        }
-                    }
-                ]
-            },
-            {
-                tagName: "div",
-                attributes: {
-                    class: "edit-icon",
-                    onclick(event) {
-                        event.stopPropagation();
-                        
-                        // Show dialog procedurally
-                        const dialog = document.querySelector('.dialog-overlay');
-                        if (dialog) {
-                            dialog.style.display = 'flex';
-                            
-                            // Populate form fields with contact data
-                            const avatarInput = dialog.querySelector('#dialog-avatar');
-                            const nameInput = dialog.querySelector('#dialog-name');
-                            const phoneInput = dialog.querySelector('#dialog-phone');
-                            const emailInput = dialog.querySelector('#dialog-email');
-                            const addressInput = dialog.querySelector('#dialog-address');
-                            const notesInput = dialog.querySelector('#dialog-notes');
-                            
-                            if (avatarInput) avatarInput.value = contact.avatar || '';
-                            if (nameInput) nameInput.value = contact.screenName || '';
-                            if (phoneInput) phoneInput.value = contact.phone || '';
-                            if (emailInput) emailInput.value = contact.email || '';
-                            if (addressInput) addressInput.value = contact.address || '';
-                            if (notesInput) notesInput.value = contact.notes || '';
-                            
-                            // Store reference to current contact for saving
-                            dialog._currentContact = contact;
-                            dialog._appState = appState;
-                        }
-                    }
-                },
-                children: [
-                    {
-                        tagName: "i",
-                        attributes: {
-                            class: "fas fa-pencil-alt"
-                        }
                     }
                 ]
             }

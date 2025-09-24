@@ -9,20 +9,25 @@
         <script src="../../assets/js/lightview.js"></script>
         <script>
             const lightview = Lightview("browser");
-            const {render, state} = lightview;
+            const {render, state, navigate} = lightview;
         </script>
         <!--script src="./index.js"></script-->
         <script src="./contact.js"></script>
         <script src="./contacts.js"></script>
-        <script src="./folder-item.js"></script>
+        <script src="../folder-item.js"></script>
     </head>
     <body>
          <script type="module" id="init">
             const {user, ui} = await lightview.import("../", { publish: true, subscribe: true});
             
+            const getAccountIconClass = (accountEmail) => {
+                const account = user.accounts[accountEmail];
+                const accountType = account?.type;
+                return ui.accountIcons?.[accountType] || ui.accountIcons?.default || 'fas fa-envelope';
+            };
+            
             // Get user accounts from user structure
             const userAccounts = user.accounts || {};
-            const accountEmails = Object.keys(userAccounts);
 
             // Get unique tags from contacts (computed dynamically)
             const tagIcons = ui.tagIcons || {};
@@ -70,6 +75,35 @@
                 }).map(({ contact }) => contact); // Extract just the contact for appState.filteredContacts
             }
 
+            const getContactsCount = ({ folder, accountEmail, tagName, appState }) => {
+                let count = 0;
+                const getAllContacts = () => Object.values(appState.user.accounts).flatMap(account => account.contacts || []);
+                
+                if (accountEmail) {
+                    const account = appState.user.accounts[accountEmail];
+                    count = account ? (account.contacts || []).length : 0;
+                } else if (tagName) {
+                    let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+                    count = contactsToCheck.filter(c => c.tags && c.tags.includes(tagName)).length;
+                } else if (folder.name === "All Contacts") {
+                    count = getAllContacts().length;
+                } else if (folder.name === "Categories") {
+                    let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+                    const uniqueTags = new Set(contactsToCheck.flatMap(c => c.tags || []));
+                    count = uniqueTags.size;
+                } else if (folder.name === "Starred") {
+                    let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+                    count = contactsToCheck.filter(c => c.starred).length;
+                } else if (folder.name === "Frequently Contacted") {
+                    let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+                    count = contactsToCheck.filter(c => c.frequentlyContacted).length;
+                } else if (folder.name === "Scheduled") {
+                    let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+                    count = contactsToCheck.filter(c => c.scheduled).length;
+                }
+                return count;
+            };
+
             // Reactive state for filtering and UI
             const appState = state({
                 tagIcons: tagIcons,
@@ -80,6 +114,8 @@
                 selectedFolderId: 'folder-All Contacts',
                 editingContact: null,
                 filteredContacts: [], // Will be computed from user.accounts (references, no copies)
+                getCount: getContactsCount,
+                getAccountIconClass,
                 selectFolder(folderType, value) {
                     if (folderType === 'account') {
                         appState.currentAccount = value;
@@ -108,14 +144,7 @@
             // Initial setup - compute filtered contacts
             updateFilteredContacts(user);
 
-            // Prepare folder data for dynamic generation
-            const folderData = {
-                accountEmails,
-                tags: [],  // Will be populated dynamically if needed
-                tagIcons: {}
-            };
-
-            document.getElementById("init").replaceWith(await Contacts(appState, folderData))
+            document.getElementById("init").replaceWith(await Contacts(appState))
         </script>
     </body>
 </html>

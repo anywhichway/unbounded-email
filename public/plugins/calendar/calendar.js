@@ -119,13 +119,11 @@ const Calendar = async (state, folderData, user) => {
                                 FolderItem({ folder: { name: "All Calendars", icon: "fas fa-calendar" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 // Account folders
                                 ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email => {
-                                    const account = user.accounts[email];
                                     return FolderItem({ 
                                         folder: { 
                                             email: email, 
                                             name: email, 
-                                            icon: account.type === 'Google' ? "fab fa-google" : 
-                                                  account.type === 'Microsoft' ? "fab fa-microsoft" : "fas fa-envelope" 
+                                            icon: state.getAccountIconClass(email)
                                         }, 
                                         isSubfolder: true, 
                                         accountEmail: email, 
@@ -137,14 +135,14 @@ const Calendar = async (state, folderData, user) => {
                                 FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
                                 // Categories subfolders (tags)
                                 ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
-                                    FolderItem({ folder: { name: tag.charAt(1).toUpperCase() + tag.slice(2), originalTag: tag, icon: tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
+                                    FolderItem({ folder: { name: tagNameToFolderName(tag), originalTag: tag, icon: tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
                                 )) : []),
                                 // Snoozed Emails category
-                                FolderItem({ folder: { name: "Snoozed Emails", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: "snoozed", appState: state }),
+                                //FolderItem({ folder: { name: "Snoozed Emails", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: "snoozed", appState: state }),
                                 // Scheduled Emails category
-                                FolderItem({ folder: { name: "Scheduled Emails", icon: "fas fa-calendar-alt" }, isSubfolder: false, accountEmail: null, tagName: "scheduled", appState: state }),
+                                //FolderItem({ folder: { name: "Scheduled Emails", icon: "fas fa-calendar-alt" }, isSubfolder: false, accountEmail: null, tagName: "scheduled", appState: state }),
                                 // Contact Reachout category
-                                FolderItem({ folder: { name: "Contact Reachout", icon: "fas fa-user-friends" }, isSubfolder: false, accountEmail: null, tagName: "contact-reachout", appState: state })
+                                //FolderItem({ folder: { name: "Contact Reachout", icon: "fas fa-user-friends" }, isSubfolder: false, accountEmail: null, tagName: "contact-reachout", appState: state })
                             ]);
                             
                             return folderItems;
@@ -170,3 +168,9 @@ const Calendar = async (state, folderData, user) => {
         ]
     });
 };
+
+function tagNameToFolderName(tag) {
+    // Remove leading '#', replace dashes with spaces, and capitalize the first letter of each word
+    const cleaned = tag.replace(/^#/, '').replace(/-/g, ' ');
+    return cleaned.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}

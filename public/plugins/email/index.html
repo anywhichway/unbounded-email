@@ -8,30 +8,62 @@
         <script src="../../assets/js/lightview.js"></script>
         <script>
             const lightview = Lightview("browser");
-            const {render, state} = lightview;
+            const {render, state, navigate} = lightview;
         </script>
         <script src="./index.js"></script>
         <script src="./emails.js"></script>
         <script src="./email.js"></script>
-        <script src="./folder-item.js"></script>
+        <script src="../folder-item.js"></script>
     </head>
     <body>
          <script type="module" id="init">
-            const {user, ui} = await lightview.import("./");
+            const {user, ui} = await lightview.import("./", { publish: true, subscribe: true });  // Added subscribe: true for reactivity
 
-            const emails = getEmailsFromAccounts(user);
+            const getAccountIconClass = (accountEmail) => {
+                const account = user.accounts[accountEmail];
+                const accountType = account?.type;
+                return ui.accountIcons?.[accountType] || ui.accountIcons?.default || 'fas fa-envelope';
+            };
+
+            // Removed: const emails = getEmailsFromAccounts(user);
 
             // Get user accounts from user structure
             const userAccounts = user.accounts || {};
-            const accountEmails = Object.keys(userAccounts);
-
-            // Get unique tags from emails
-            const tags = [...new Set(emails.flatMap(e => e.tags || []))];
+            
+            // Get unique tags from emails (now computed reactively via getter)
+            const tags = [...new Set(getEmailsFromAccounts(user).flatMap(e => e.tags || []))];  // Temporary for initial tags; will be reactive via getter
             const tagIcons = ui.tagIcons || {};
+
+            const getEmailCount = ({ folder, accountEmail, tagName, appState }) => {
+                let count = 0;
+                const allEmails = appState.emails;
+
+                if (tagName) {
+                    count = allEmails.filter(email => {
+                        if (appState.currentAccount && email.sourceAccount !== appState.currentAccount) {
+                            return false;
+                        }
+                        if (tagName === 'starred') return email.starred;
+                        if (tagName === 'snoozed') return email.snoozed;
+                        if (tagName === 'scheduled') return email.scheduled;
+                        return email.tags && email.tags.includes(tagName);
+                    }).length;
+                } else if (accountEmail) {
+                    count = allEmails.filter(email => email.sourceAccount === accountEmail).length;
+                } else {
+                    const folderName = folder.name;
+                    count = allEmails.filter(email => {
+                        if (appState.currentAccount && email.sourceAccount !== appState.currentAccount) {
+                            return false;
+                        }
+                        return email.folder === folderName;
+                    }).length;
+                }
+                return count;
+            };
 
             // Reactive state for filtering and UI
             const appState = state({
-                emails: emails,
                 tagIcons: tagIcons,
                 user: user,
                 currentAccount: null,
@@ -39,8 +71,13 @@
                 currentFolder: null,
                 selectedFolderId: 'folder-Inbox',
                 editingEmail: null,
+                getCount: getEmailCount,
+                getAccountIconClass,
+                get emails() {  // Made reactive getter dependent on user (like contacts' filteredContacts)
+                    return getEmailsFromAccounts(this.user);
+                },
                 get filteredEmails() {
-                    let filtered = this.emails;
+                    let filtered = this.emails;  // Now reactive
 
                     // First filter by account if one is selected
                     if (this.currentAccount) {
@@ -49,7 +86,15 @@
 
                     // Then apply additional filters based on current selection
                     if (this.currentTag) {
-                        filtered = filtered.filter(e => e.tags && e.tags.includes(this.currentTag));
+                        if (this.currentTag === 'starred') {
+                            filtered = filtered.filter(e => e.starred);
+                        } else if (this.currentTag === 'snoozed') {
+                            filtered = filtered.filter(e => e.snoozed);
+                        } else if (this.currentTag === 'scheduled') {
+                            filtered = filtered.filter(e => e.scheduled);
+                        } else {
+                            filtered = filtered.filter(e => e.tags && e.tags.includes(this.currentTag));
+                        }
                     } else if (this.currentFolder) {
                         const lowerCaseFolder = this.currentFolder.toLowerCase();
                         switch (lowerCaseFolder) {
@@ -68,8 +113,11 @@
                                 break;
                         }
                     } else {
-                        // Default to Inbox if no specific filter
-                        filtered = filtered.filter(e => e.folder === 'Inbox');
+                        // Default to Inbox only if no account, tag, or folder is selected (matches contacts' "All Contacts" default behavior)
+                        if (!this.currentAccount && !this.currentTag && !this.currentFolder) {
+                            filtered = filtered.filter(e => e.folder === 'Inbox');
+                        }
+                        // If account is selected but no tag/folder, show all emails from the account (no folder filter)
                     }
 
                     return filtered;
@@ -87,14 +135,12 @@
                     } else if (folderType === 'folder') {
                         this.currentFolder = value;
                         this.currentTag = null;
-                        if (value === 'Inbox') {
-                            this.currentAccount = null;
-                        }
+                        // Removed: if (value === 'Inbox') { this.currentAccount = null; }  // Keep account selection for folder changes
                         this.selectedFolderId = `folder-${value}`;
                     }
                 },
                 updateSnooze(emailId, newDateTime) {
-                    const email = this.emails.find(e => e.id === emailId);
+                    const email = this.emails.find(e => e.id === emailId);  // Now reactive
                     if (email) {
                         if (newDateTime) {
                             email.snoozed = new Date(newDateTime).toISOString();
@@ -104,7 +150,7 @@
                     }
                 },
                 updateSchedule(emailId, newDateTime) {
-                    const email = this.emails.find(e => e.id === emailId);
+                    const email = this.emails.find(e => e.id === emailId);  // Now reactive
                     if (email) {
                         if (newDateTime) {
                             email.scheduled = new Date(newDateTime).toISOString();
@@ -115,14 +161,7 @@
                 }
             });
 
-            // Prepare folder data for dynamic generation
-            const folderData = {
-                accountEmails,
-                tags: [],
-                tagIcons: {}
-            };
-
-            document.getElementById("init").replaceWith(await Emails(appState, folderData))
+            document.getElementById("init").replaceWith(await Emails(appState))
         </script>
     </body>
 </html>

@@ -62,6 +62,29 @@ html, body {
     background-color: #e0e0e0;
 }
 
+/* Shared style for top-right icons in plugins (e.g., contacts, calendar) - lighter, no heavy hover */
+.plugin-icon-top-right {
+    font-weight: normal;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.plugin-icon-top-right:hover {
+    opacity: 1.0; /* Subtle hover, no bold or heavy effects */
+}
+
+/* Shared style for always-visible, light plugin icons (e.g., email actions, contact icons) */
+.plugin-icon-always-visible {
+    display: flex !important; /* Always show, override any hover-only rules */
+    font-weight: normal; /* Lighter weight */
+    opacity: 0.8; /* Subtle appearance */
+    transition: opacity 0.2s ease; /* Gentle transition, no heavy hover */
+}
+
+.plugin-icon-always-visible:hover {
+    opacity: 1.0; /* Light hover effect, no bold */
+}
+
 #pluginView {
     flex: 1;
     height: 100%;

@@ -8,7 +8,7 @@
         <script src="../../assets/js/lightview.js"></script>
         <script>
             const lightview = Lightview("browser");
-            const {render, state} = lightview;
+            const {render, state, navigate} = lightview;
             // Make lightview available globally for component files
             window.lightview = lightview;
         </script>
@@ -41,7 +41,7 @@
                 },
                 accounts
             });
-            document.getElementById("init").replaceWith(await Configure(appState, set))
+            document.getElementById("init").replaceWith(await Configure(appState))
         </script>
     </body>
 </html>

@@ -8,22 +8,28 @@
         <script src="../../assets/js/lightview.js"></script>
         <script>
             const lightview = Lightview("browser");
-            const {render, state} = Lightview("browser");
+            const {render, state, navigate} = Lightview("browser");
         </script>
         <script src="./index.js"></script>
         <script src="./calendar.js"></script>
         <script src="./events.js"></script>
-        <script src="./folder-item.js"></script>
+        <script src="../folder-item.js"></script>
     </head>
     <body>
          <script type="module" id="init">
             const {user, ui} = await lightview.import("./");
 
+            const getAccountIconClass = (accountEmail) => {
+                const account = user.accounts[accountEmail];
+                const accountType = account?.type;
+                return ui.accountIcons?.[accountType] || ui.accountIcons?.default || 'fas fa-envelope';
+            };
+
             const events = getEventsFromAccounts(user);
 
             // Get user accounts from user structure
             const userAccounts = user.accounts || {};
-            const accountEmails = Object.keys(userAccounts);
+            const accountEmails = Object.keys(user?.accounts || {}).filter(key => !key.startsWith('_'));
 
             // Get unique tags from events
             const tags = [...new Set(events.flatMap(e => e.tags || []))];
@@ -32,6 +38,21 @@
                 snoozed: "fas fa-clock",
                 scheduled: "fas fa-calendar-alt",
                 "contact-reachout": "fas fa-user-friends"
+            };
+
+            const getCalendarCount = ({ folder, accountEmail, tagName, appState }) => {
+                let count = 0;
+                if (accountEmail) {
+                    count = appState.events.filter(e => e.sourceAccount === accountEmail).length;
+                } else if (tagName) {
+                    let eventsToCheck = appState.currentAccount ?
+                        appState.events.filter(e => e.sourceAccount === appState.currentAccount) :
+                        appState.events;
+                    count = eventsToCheck.filter(e => e.tags && e.tags.includes(tagName)).length;
+                } else if (folder.name === "All Calendars") {
+                    count = appState.events.length;
+                }
+                return count;
             };
 
             // Reactive state for filtering and UI
@@ -45,6 +66,8 @@
                 currentView: 'monthly',
                 currentDate: new Date(),
                 selectedDate: new Date(),
+                getCount: getCalendarCount,
+                getAccountIconClass,
                 get filteredEvents() {
                     let filtered = this.events;
 

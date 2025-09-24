@@ -6,7 +6,6 @@
                 "type": "Google",
                 "name": "G",
                 "color": "#007bff",
-                "folders": ["Inbox", "Drafts", "Sent", "Spam", "Trash", "Work", "Personal"],
                 "emails": [
                     {
                         "to": ["syblackwell@anywhichway.com"],
@@ -97,7 +96,6 @@
                 "type": "Microsoft",
                 "name": "M",
                 "color": "#28a745",
-                                "folders": ["Inbox", "Drafts", "Scheduled", "Snoozed", "Sent", "Spam", "Trash", "Personal"],
                 "emails": [
                     {
                         "to": ["julianaperez_8@msn.com"],
@@ -249,6 +247,11 @@
         }
     },
     "ui": {
+        "accountIcons": {
+            "Google": "fab fa-google",
+            "Microsoft": "fab fa-microsoft",
+            "default": "fas fa-envelope"
+        },
         "tagIcons": {
             "#family": "fas fa-home",
             "#friends": "fas fa-user-friends",

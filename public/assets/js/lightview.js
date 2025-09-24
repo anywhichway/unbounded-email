@@ -59,10 +59,21 @@ const Lightview = () => {
         return Math.random().toString(36).slice(2, 15) + Date.now().toString(36);
     }
 
+// Define mutating Date methods for wrapping
+const dateMutatingMethods = [
+  'setDate', 'setFullYear', 'setHours', 'setMilliseconds', 'setMinutes', 
+  'setMonth', 'setSeconds', 'setTime', 'setUTCDate', 'setUTCFullYear', 
+  'setUTCHours', 'setUTCMilliseconds', 'setUTCMinutes', 'setUTCMonth', 
+  'setUTCSeconds', 'setYear'
+];
+
     // Helper to recursively create proxies for nested objects
     function recursiveState(obj, publishFn = null) {
         if (typeof obj !== 'object' || obj === null) return obj;
         if (obj._id && proxyIdCache.has(obj._id)) return proxyIdCache.get(obj._id);
+        
+        // Handle Date objects: Return as-is (no proxy) to avoid incompatibility
+        if (obj instanceof Date) return obj;
         
         // Reuse existing _id if present, otherwise generate
         if (!obj._id) {
@@ -89,9 +100,9 @@ const Lightview = () => {
 
     const stateHandler = {
         get(target, property, receiver) {
-            if(property==="__isStateProxy") return true; // Internal flag to identify proxies
+            if (property === "__isStateProxy") return true; // Internal flag to identify proxies
             const value = Reflect.get(target, property, receiver);
-            if(typeof value==="function)") return value;
+            if (typeof value === "function)") return value;
             // Track dependency for this property (moved here to cover all cases)
             // Skip tracking for internal properties to avoid proxy conflicts
             if (property !== '__dependencies' && property !== '_id' && property !== '__publish') {
@@ -109,67 +120,12 @@ const Lightview = () => {
                 // Check cache first to avoid creating duplicate proxies
                 let nestedProxy = proxyIdCache.get(value._id);
                 if (!nestedProxy) {
-                    // Special handling for Date objects
-                    if (value instanceof Date) {
-                        // Reuse existing _id if present, otherwise generate
-                        if (!value._id) {
-                            Object.defineProperty(value, '_id', { value: generateProxyId(), enumerable: false, configurable: true });
-                            proxyIdCache.set(value._id, value); // Cache the Date itself as proxy
-                        }
-                        
-                        // Propagate __publish to Date if present on parent
-                        if (target.__publish) {
-                            Object.defineProperty(value, '__publish', { value: target.__publish, enumerable: false, configurable: true });
-                        }
-                        
-                        // Create a proxy for the Date that intercepts mutations
-                        const dateProxy = new Proxy(value, {
-                            get(dateTarget, dateProperty, receiver) {
-                                const dateValue = Reflect.get(dateTarget, dateProperty, receiver);
-                                
-                                // If it's a method that mutates the date, wrap it to trigger reactivity
-                                if (typeof dateValue === 'function' && [
-                                    'setDate', 'setFullYear', 'setHours', 'setMilliseconds', 'setMinutes', 
-                                    'setMonth', 'setSeconds', 'setTime', 'setUTCDate', 'setUTCFullYear', 
-                                    'setUTCHours', 'setUTCMilliseconds', 'setUTCMinutes', 'setUTCMonth', 
-                                    'setUTCSeconds', 'setYear'
-                                ].includes(dateProperty)) {
-                                    return function(...args) {
-                                        const oldValue = new Date(dateTarget.getTime());
-                                        const result = dateValue.apply(dateTarget, args);
-                                        
-                                        // Trigger effects for the property
-                                        if (target.hasOwnProperty('__dependencies') && target.__dependencies.has(property)) {
-                                            trigger(target.__dependencies.get(property));
-                                        }
-                                        
-                                        return result;
-                                    };
-                                }
-                                
-                                // For all other properties/methods, return them as-is but bound to the original Date
-                                if (typeof dateValue === 'function') {
-                                    return dateValue.bind(dateTarget);
-                                }
-                                
-                                return dateValue;
-                            },
-                            set(dateTarget, dateProperty, value, receiver) {
-                                // Handle direct property assignment on Date objects
-                                const oldValue = new Date(dateTarget.getTime());
-                                const result = Reflect.set(dateTarget, dateProperty, value, receiver);
-                                
-                                // Trigger effects for the property
-                                if (target.hasOwnProperty('__dependencies') && target.__dependencies.has(property)) {
-                                    trigger(target.__dependencies.get(property));
-                                }
-                                
-                                return result;
-                            }
-                        });
-                        
-                        nestedProxy = dateProxy;
-                        proxyIdCache.set(value._id, nestedProxy);
+                    // For non-Date objects, create proxy
+                    if (!(value instanceof Date)) {
+                      nestedProxy = recursiveState(value, target.__publish);
+                    } else {
+                      // For Date objects, return as-is (already handled in recursiveState)
+                      nestedProxy = value;
                     }
                 }
                 return nestedProxy;
@@ -191,7 +147,20 @@ const Lightview = () => {
             
             const result = Reflect.set(target, property, setValue, receiver);
             const type = typeof value;
-            if(property.startsWith("__") || ["function","symbol"].includes(type)) return result; // Skip internal properties
+            if (property.startsWith("__") || ["function", "symbol"].includes(type)) return result; // Skip internal properties
+            
+            // If the set value is a Date, wrap its mutating methods to trigger reactivity
+            if (setValue instanceof Date) {
+              const deps = target.__dependencies?.get(property);
+              for (const method of dateMutatingMethods) {
+                const original = setValue[method];
+                setValue[method] = function(...args) {
+                  const result = original.apply(this, args);
+                  if (deps) trigger(deps);
+                  return result;
+                };
+              }
+            }
             
             // Publish changes if __publish is set (for exported/imported objects)
             if (target.__publish) {
@@ -514,9 +483,9 @@ const Lightview = () => {
         }
 
         // Removed: serializableObj creation and storage
-        // Now always store the reactive obj as originalObj
+        // Now always store the reactive obj as obj
 
-        exports.set(location.href, { _id, originalObj: obj, publish, subscribe });
+        exports.set(location.href, { _id, obj, publish, subscribe });
     }
     const nonce = Math.random().toString(36).slice(2);
     broadcast({type:'setParent',nonce,srcHref:location.href});
@@ -624,6 +593,14 @@ const Lightview = () => {
     const msg = e.data?.[NS];
     if (!msg || !msg.type || seen.includes(msg.nonce)) return;
     
+    if(msg.type==='navigate' && msg.url) {
+        const iframes = document.querySelectorAll(`iframe`);
+        iframes.forEach(iframe => {
+            if(iframe.src === msg.srcHref && iframe.src !== msg.url) {
+                iframe.src = msg.url;
+            }
+        });
+    }
 
     if(msg.nonce) seen.push(msg.nonce);
     if(seen.length>10) seen.shift();
@@ -671,12 +648,12 @@ const Lightview = () => {
 
                                 if (canPublish) {
                     // Removed debug logging
-                    ours.originalObj = state(ours.originalObj);  // Ensure reactivity (though it should already be reactive)
+                    ours.obj = state(ours.obj);  // Ensure reactivity (though it should already be reactive)
                 }
                 
                 // Removed debug logging
-                const objToSend = makeSerializable(ours.originalObj);  // Always serialize the reactive obj
-                post(msg.srcHref, { type:'exportStaticReply', nonce: msg.nonce, _id: ours.originalObj._id, obj: objToSend, canPublish, srcHref:location.href });
+                const objToSend = makeSerializable(ours.obj);  // Always serialize the reactive obj
+                post(msg.srcHref, { type:'exportStaticReply', nonce: msg.nonce, _id: ours.obj._id, obj: objToSend, canPublish, srcHref:location.href });
             }
             break;
         }
@@ -694,48 +671,15 @@ const Lightview = () => {
                     const srcHref = currentWindow.parentHref === msg.srcHref ? '/' : msg.srcHref || e.href;
                     post(srcHref, { type: 'set', _id, property, value, nonce, srcHref: location.href });
                 } : null;
+                const desc = Object.getOwnPropertyDescriptor(msg.obj, "_id");
+                desc.enumerable = false;
+                Object.defineProperty(msg.obj, "_id", desc);
                 resolvedObj = state(msg.obj, publishFn);
             }
             
             // Removed debug logging
             resolve(resolvedObj);
             break;
-        }
-        case 'get': {
-          const exported = exports.get(location.href);
-          if (!exported) return;
-
-          // Use reactive object for function access
-          let target = exported.originalObj;
-
-          // path is already an array
-          const pathParts = msg.path;
-          
-          for (const k of pathParts) {
-            target = target?.[k];
-            if (target === undefined) break;
-          }
-
-          let value;
-          try {
-            value = msg.path.endsWith('()') && typeof target === 'function'  // Note: Adjust if path has '()' as last element
-              ? await target(...msg.args)
-              : target;
-          } catch (err) { 
-            console.error('Error invoking function:', err);
-            value = undefined; 
-          }
-
-          post(msg.srcHref, { type:'valueReply', nonce: msg.nonce, value, srcHref:currentWindow.location.href });
-          break;
-        }
-        case 'valueReply': {
-          const entry = pendings.get(msg.nonce);
-          if (!entry) return;
-          const { resolve } = entry;
-          pendings.delete(msg.nonce);
-          resolve(msg.value);
-          break;
         }
         case 'change': {
           const { _id, property, value, srcHref } = msg;

@@ -1,4 +1,4 @@
-const Configure = async (state, set) => {
+const Configure = async (state) => {
     return render({
         tagName: "div",
         attributes: {
@@ -80,7 +80,6 @@ const Configure = async (state, set) => {
                                             onclick: async () => {
                                                 const newScreenName = document.getElementById('screen-name').value;
                                                 state.user.screenName = newScreenName;
-                                            await set('user', state.user);
                                                 alert('Screen name updated successfully!');
                                             }
                                         },

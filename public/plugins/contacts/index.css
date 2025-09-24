@@ -32,11 +32,18 @@
     border-right: 4px solid #007acc;
 }
 
-/* Star icon styling */
-.star-icon {
+/* Contact actions container (new flexible wrapper for icons) */
+.contact-actions {
     position: absolute;
     top: 8px;
-    right: 44px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 1; /* Always visible */
+}
+
+/* Star icon styling (remove absolute positioning, adjust for flex) */
+.star-icon {
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s ease;
@@ -65,11 +72,8 @@
     color: #ffd700;
 }
 
-/* Edit icon styling */
+/* Edit icon styling (remove absolute positioning, adjust for flex) */
 .edit-icon {
-    position: absolute;
-    top: 8px;
-    right: 8px;
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s ease;
@@ -94,9 +98,8 @@
     color: #007acc;
 }
 
-/* Calendar icon styling */
+/* Calendar icon styling (adjust for flex context) */
 .calendar-icon {
-    padding: 4px;
     cursor: pointer;
     border-radius: 50%;
     transition: all 0.2s ease;
@@ -121,15 +124,12 @@
     color: #007acc;
 }
 
-/* Schedule container styling */
+/* Schedule container styling (remove absolute positioning, adjust for flex) */
 .schedule-container {
-    position: absolute;
-    top: 8px;
-    right: 80px;
     display: flex;
     align-items: center;
     gap: 4px;
-    height: 28px; /* Match the star icon height for alignment */
+    height: 28px; /* Match icon height for alignment */
 }
 
 /* Schedule date display */
@@ -501,10 +501,31 @@
         font-size: 10px;
     }
     
+    .contact-actions {
+        top: 6px;
+        right: 6px;
+        gap: 2px;
+    }
+    
+    .star-icon,
+    .edit-icon,
+    .calendar-icon {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .star-icon i,
+    .calendar-icon i {
+        font-size: 14px;
+    }
+    
+    .edit-icon i {
+        font-size: 12px;
+    }
+    
     .schedule-container {
-        right: 36px; /* Adjust position for smaller screens */
+        height: 24px;
         gap: 3px;
-        height: 24px; /* Adjust for mobile */
     }
     
     .schedule-date {
@@ -516,32 +537,12 @@
         font-size: 10px;
         padding: 3px 6px;
         min-width: 120px;
-        height: 20px; /* Adjust for mobile */
+        height: 20px;
     }
     
     .clear-date-btn {
         width: 14px;
         height: 14px;
         font-size: 12px;
-    }
-    
-    .calendar-icon {
-        width: 24px;
-        height: 24px;
-    }
-    
-    .calendar-icon i {
-        font-size: 14px;
-    }
-    
-    .star-icon {
-        width: 24px;
-        height: 24px;
-        top: 6px;
-        right: 6px;
-    }
-    
-    .star-icon i {
-        font-size: 14px;
     }
 }

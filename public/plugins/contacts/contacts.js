@@ -1,4 +1,4 @@
-const Contacts = async (appState, folderData) => {
+const Contacts = async (appState) => {
     return render({
         tagName: "div",
         attributes: {
@@ -58,7 +58,7 @@ const Contacts = async (appState, folderData) => {
                         },
                         async children() {
                             // Generate folder items dynamically based on current appState
-                            const accountEmails = Object.keys(appState.user?.accounts || {});
+                            const accountEmails = Object.keys(appState.user?.accounts || {}).filter(key => !key.startsWith('_'));
                             
                             // Get all unique tags from current filtered contacts
                             const allTags = new Set();
@@ -69,12 +69,17 @@ const Contacts = async (appState, folderData) => {
                             });
                             const tags = Array.from(allTags).sort();
                             
+                            // Check for dynamic categories based on tags
+                            const hasSnoozed = tags.includes('#snoozed');
+                            const hasScheduled = tags.includes('#scheduled');
+                            const hasContactReachout = tags.includes('#contact-reachout');
+                            
                             const folderItems = await Promise.all([
                                 // All Contacts folder
                                 FolderItem({ folder: { name: "All Contacts", icon: "fas fa-users" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
                                 // All Contacts subfolders (accounts)
                                 ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email =>
-                                    FolderItem({ folder: { email: email, name: email, icon: "fas fa-envelope" }, isSubfolder: true, accountEmail: email, tagName: null, appState })
+                                    FolderItem({ folder: { email: email, name: email, icon: appState.getAccountIconClass(email) }, isSubfolder: true, accountEmail: email, tagName: null, appState: appState })
                                 )) : []),
                                 // Categories folder
                                 FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
@@ -82,10 +87,10 @@ const Contacts = async (appState, folderData) => {
                                 ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
                                     FolderItem({ folder: { name: tag.charAt(1).toUpperCase() + tag.slice(2), originalTag: tag, icon: appState.tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState })
                                 )) : []),
-                                // Other folders
-                                FolderItem({ folder: { name: "Starred", icon: "fas fa-star" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
-                                FolderItem({ folder: { name: "Frequently Contacted", icon: "fas fa-history" }, isSubfolder: false, accountEmail: null, tagName: null, appState }),
-                                FolderItem({ folder: { name: "Scheduled", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: null, appState })
+                                // Dynamic categories (only if relevant tags exist)
+                                ...(hasSnoozed ? [FolderItem({ folder: { name: "Snoozed Emails", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: "#snoozed", appState })] : []),
+                                ...(hasScheduled ? [FolderItem({ folder: { name: "Scheduled Emails", icon: "fas fa-calendar-alt" }, isSubfolder: false, accountEmail: null, tagName: "#scheduled", appState })] : []),
+                                ...(hasContactReachout ? [FolderItem({ folder: { name: "Contact Reachout", icon: "fas fa-user-friends" }, isSubfolder: false, accountEmail: null, tagName: "#contact-reachout", appState })] : [])
                             ]);
                             
                             return folderItems;
@@ -127,7 +132,7 @@ const Contacts = async (appState, folderData) => {
             EditContactDialog(appState)
         ]
     });
-}
+};
 
 // Edit Contact Dialog Component
 function EditContactDialog(appState) {

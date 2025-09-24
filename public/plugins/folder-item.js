@@ -16,15 +16,16 @@ const FolderItem = async (props) => {
         attributes: {
             class() {
                 let classes = isSubfolder ? "folder-item subfolder" : "folder-item";
-                if (appState.selectedFolderId === (isSubfolder && accountEmail ? `account-${accountEmail.replace('@', '-at-')}` :
-                    (folder && folder.name && !tagName ? `folder-${folder.name}` :
-                    (tagName ? `category-${tagName}` : '')))) {
-                    classes += " active";
+                // Standardized folderId logic
+                const folderId = tagName ? `category-${tagName}` : (accountEmail ? `account-${accountEmail.replace('@', '-at-')}` : `folder-${folder.name}`);
+                if (appState.selectedFolderId === folderId) {
+                    classes += " selected"; // Standardized to 'selected'
                 }
                 return classes;
             },
             onclick() {
                 if (tagName) {
+                    // Use folder.originalTag if it exists (for contacts/calendar), otherwise tagName
                     appState.selectFolder('tag', folder.originalTag || tagName);
                 } else if (accountEmail) {
                     appState.selectFolder('account', accountEmail);
@@ -53,28 +54,14 @@ const FolderItem = async (props) => {
                     class: "folder-count"
                 },
                 children: [() => {
-                    let count = 0;
-
-                    if (accountEmail) {
-                        // For account folders, count events from that specific account
-                        count = appState.events.filter(e => e.sourceAccount === accountEmail).length;
-                    } else if (tagName) {
-                        // For tag folders, count events with that tag
-                        let eventsToCheck = appState.currentAccount ?
-                            appState.events.filter(e => e.sourceAccount === appState.currentAccount) :
-                            appState.events;
-                        count = eventsToCheck.filter(e => e.tags && e.tags.includes(tagName)).length;
-                    } else if (folder.name === "All Calendars") {
-                        // For "All Calendars", show total count of all events
-                        count = appState.events.length;
+                    if (typeof appState.getCount !== 'function') {
+                        console.error("FolderItem: `appState.getCount` is not a function.", props);
+                        return "";
                     }
-
-                    return count;
+                    const count = appState.getCount({ folder, accountEmail, tagName, appState });
+                    return count > 0 ? count.toString() : "";
                 }]
             }
         ]
     });
 };
-
-// Make FolderItem globally available
-window.FolderItem = FolderItem;

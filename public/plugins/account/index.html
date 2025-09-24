@@ -3,24 +3,22 @@
 <head>
     <link rel="stylesheet" href="../index.css">
     <link rel="stylesheet" href="./index.css">
-    <script src="../../assets/js/lightview-core.js"></script>
-    <script src="../../assets/js/lightview-dom.js"></script>
-    <script src="../../assets/js/lightview-iframe.js"></script>
     <script src="../../assets/js/lightview.js"></script>
-    <script src="./index.js"></script>
+    <script>
+        const lightview = Lightview("browser");
+        const { render } = lightview;
+    </script>
 </head>
 <body>
     <div id="app"></div>
     <script type="module" id="init">
-        const {render} = Lightview("dom");
-        const {local} = lvIFrame;
-        const {user, ui, get, set} = await local(lvIFrame.import("./"));
+        const { user, ui } = await lightview.import("../", { publish: true, subscribe: true });
 
         const urlParams = new URLSearchParams(window.location.search);
         const accountEmail = urlParams.get('account');
-        const account = user.accounts[accountEmail];
 
         const renderAccountView = () => {
+            const account = user.accounts[accountEmail];
             if (!account) {
                 render({
                     tagName: 'div',
@@ -86,7 +84,6 @@
             user.accounts[accountEmail].name = newName;
             user.accounts[accountEmail].color = newColor;
 
-            await set('user', user);
             renderAccountView();
             alert('Account updated successfully!');
         };
@@ -94,7 +91,6 @@
         window.deleteAccount = async () => {
             if (confirm(`Are you sure you want to delete the account ${accountEmail}? This action cannot be undone.`)) {
                 delete user.accounts[accountEmail];
-                await set('user', user);
                 // Redirect to calendar or a safe place
                 window.location.href = '../calendar/index.html';
             }

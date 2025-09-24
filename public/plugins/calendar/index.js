@@ -72,7 +72,7 @@ function getEventsFromAccounts(userData) {
                                 accountType: account.type || 'unknown',
                                 sourceAccount: accountEmail,
                                 color: '#ff6b6b', // Red color for snoozed emails
-                                tags: ['snoozed'],
+                                tags: ['#snoozed'],
                                 recurrence: null,
                                 reminders: [],
                                 category: 'snoozed-emails',
@@ -101,7 +101,7 @@ function getEventsFromAccounts(userData) {
                             accountType: account.type || 'unknown',
                             sourceAccount: accountEmail,
                             color: '#4ecdc4', // Teal color for contact reachouts
-                            tags: ['contact-reachout'],
+                            tags: ['#contact-reachout'],
                             recurrence: null,
                             reminders: [],
                             category: 'contact-reachout',
