@@ -1,31 +1,74 @@
-function getContactsFromAccounts(userData) {
-    const contacts = [];
-    
-    if (userData && userData.accounts) {
-        // Iterate through each account
-        Object.keys(userData.accounts).forEach(accountEmail => {
-            const account = userData.accounts[accountEmail];
-            
-            // Add contacts from the account's contacts array
-            if (account.contacts && Array.isArray(account.contacts)) {
-                account.contacts.forEach(contact => {
-                    // Normalize the original contact object in place
-                    contact.screenName ||= contact.email;
-                    contact.phone ||= contact.phone || '';
-                    contact.address ||= '';
-                    contact.accountType ||= account.type || 'unknown';
-                    contact.sourceAccount ||= accountEmail;
-                    contact.starred ||= false;
-                    contact.frequentlyContacted ||= false;
-                    contact.scheduled ||= false;
-                    contact.scheduledDate ||= null;
-                    contact.editingSchedule ||= false;
-                    contact.tags ||= [];
-                    contacts.push(contact);
-                });
-            }
-        });
-    }
-    
-    return contacts;
+// Function to get all contacts as references (no flattening or copying)
+// This returns original contact objects from user.accounts to maintain reactivity
+function getAllContacts(user) {
+    // flatMap is used here to flatten the nested structure:
+    // user.accounts is an object with account emails as keys, each containing a contacts array
+    // We need to flatten all contacts into a single array for UI rendering and filtering
+    // But we return REFERENCES to the original objects, not copies, to preserve reactivity
+    // Modified to include accountEmail for accurate filtering
+    return Object.entries(user.accounts).flatMap(([accountEmail, account]) => 
+        (account.contacts || []).map(contact => ({ contact, accountEmail }))
+    );
 }
+
+// Function to compute filtered contacts reactively (no copies)
+function updateFilteredContacts(appState) {
+    const user = appState.user;
+    const allContacts = getAllContacts(user);
+    appState.filteredContacts = allContacts.filter(({ contact, accountEmail }) => {
+        // First filter by account if one is selected
+        if (appState.currentAccount && accountEmail !== appState.currentAccount) {
+            return false;
+        }
+        
+        // Then apply additional filters based on current selection
+        if (appState.currentTag) {
+            return contact.tags && contact.tags.includes(appState.currentTag);
+        } else if (appState.currentFolder) {
+            const lowerCaseFolder = appState.currentFolder.toLowerCase();
+            switch (lowerCaseFolder) {
+                case 'starred':
+                    return contact.starred;
+                case 'frequently contacted':
+                    return contact.frequentlyContacted;
+                case 'scheduled':
+                    return contact.scheduled;
+                default:
+                    return true;
+            }
+        }
+        
+        return true;
+    }).map(({ contact }) => contact); // Extract just the contact for appState.filteredContacts
+}
+
+
+const getContactsCount = ({ folder, accountEmail, tagName, appState }) => {
+    let count = 0;
+    const getAllContacts = () => Object.values(appState.user.accounts).flatMap(account => account.contacts || []);
+    
+    if (accountEmail) {
+        const account = appState.user.accounts[accountEmail];
+        count = account ? (account.contacts || []).length : 0;
+    } else if (tagName) {
+        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        count = contactsToCheck.filter(c => c.tags && c.tags.includes(tagName)).length;
+    } else if (folder.name === "All Contacts") {
+        count = getAllContacts().length;
+    } else if (folder.name === "Categories") {
+        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        const uniqueTags = new Set(contactsToCheck.flatMap(c => c.tags || []));
+        count = uniqueTags.size;
+    } else if (folder.name === "Starred") {
+        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        count = contactsToCheck.filter(c => c.starred).length;
+    } else if (folder.name === "Frequently Contacted") {
+        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        count = contactsToCheck.filter(c => c.frequentlyContacted).length;
+    } else if (folder.name === "Scheduled") {
+        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        count = contactsToCheck.filter(c => c.scheduled).length;
+    }
+    return count;
+};
+

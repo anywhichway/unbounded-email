@@ -14,28 +14,80 @@
 
 .email-item {
     display: flex;
-    align-items: center;
-    padding: 15px 15px 15px 55px;
+    align-items: flex-start;
+    padding: 15px;
     background-color: white;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.2s ease;
     cursor: pointer;
     position: relative;
-    min-height: 60px;
+    min-height: 78px;
 }
 
 .email-item:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+.email-info {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+}
+
+.email-avatar-container {
+    flex: 0;
+    min-width: 40px;
+    display: flex;
+    align-items: flex-start;
+    flex-direction: row;
+    padding: 8px;
+    margin-right: 10px;
+}
+
+.email-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.email-details {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.email-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.email-subject {
+    flex: 1;
+    font-size: 14px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .email-actions {
-    position: absolute;
-    top: 8px;
-    right: 8px;
+    flex: 0;
     display: flex;
     gap: 4px;
-    opacity: 1; /* Always visible */
 }
 
 .email-action-btn {
@@ -43,7 +95,7 @@
     border: none;
     cursor: pointer;
     padding: 6px;
-    border-radius: 50%; /* Make it circular like contact icons */
+    border-radius: 50%;
     font-size: 14px;
     transition: background-color 0.2s ease;
     display: flex;
@@ -57,6 +109,74 @@
 .email-action-btn:hover {
     background-color: rgba(0, 0, 0, 0.1);
     color: #333;
+}
+
+.email-delete-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: #666;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    outline: none;
+}
+
+.email-delete-btn:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+.email-from-date {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.email-from {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-date {
+    flex: 0;
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+}
+
+.email-to {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-preview {
+    font-size: 13px;
+    color: #666;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .email-item.unread {
@@ -81,73 +201,6 @@
 .email-item.snoozed {
     border-left: 3px solid #6c757d;
     opacity: 0.7;
-}
-
-.email-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background-color: #6c757d;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    font-weight: 600;
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-.email-info {
-    flex: 1;
-    min-width: 0;
-    margin-left: 70px; /* 48px avatar + 15px left position + 7px gap */
-}
-
-.email-sender {
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 2px;
-}
-
-.email-subject {
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.email-preview {
-    font-size: 13px;
-    color: #666;
-    margin-bottom: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.email-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-}
-
-.email-date {
-    font-size: 12px;
-    color: #999;
-}
-
-.email-account {
-    font-size: 12px;
-    color: #007bff;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 .email-status {
@@ -271,15 +324,35 @@
     font-size: 16px;
 }
 
-.email-actions {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
+.email-actions.plugin-icon-always-visible {
+    display: flex !important;
 }
 
-/* Ensure email actions are always visible and light, using the shared style */
-.email-actions.plugin-icon-always-visible {
-    display: flex !important; /* Override any default hidden state */
+.email-compose-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: #666;
+    margin-left: 8px;
+}
+
+.email-compose-btn:hover {
+    color: #333;
+}
+
+.plugin-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 @media (max-width: 600px) {
@@ -290,24 +363,26 @@
     }
 
     .email-item {
-        padding: 12px 12px 12px 50px;
-        min-height: 50px;
+        padding: 12px;
+        min-height: 66px;
+    }
+
+    .email-avatar-container {
+        min-width: 30px;
+        padding: 6px;
     }
 
     .email-avatar {
         width: 36px;
         height: 36px;
         font-size: 14px;
-        left: 12px;
     }
 
-    .email-info {
-        margin-left: 55px; /* 36px avatar + 12px left position + 7px gap */
+    .email-details {
+        /* Adjust as needed */
     }
 
     .email-actions {
-        top: 6px;
-        right: 6px;
         gap: 2px;
     }
 

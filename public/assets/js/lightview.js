@@ -276,11 +276,11 @@ const dateMutatingMethods = [
             return description;
         }
 
-        let { tagName, attributes = {}, children = [] } = description;
+        let { tagName, attributes = {}, children = [], innerHTML } = description;
         const stateObj = options.state;
 
         if (typeof attributes === "function") attributes = await attributes();
-
+        if(typeof innerHTML==="function") innerHTML = await innerHTML();
         const el = document.createElement(tagName);
         if (stateObj) {
             Object.defineProperty(el, "state", {
@@ -313,6 +313,11 @@ const dateMutatingMethods = [
                 }
             });
             await effect();
+        }
+
+        if(innerHTML) {
+            el.innerHTML = innerHTML;
+            return el;
         }
 
         const originalChildren = children; // Preserve the original function

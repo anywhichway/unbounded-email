@@ -158,3 +158,18 @@ function getEventsForWeek(events, startDate) {
         return eventStart <= weekEnd && eventEnd >= weekStart;
     });
 }
+
+const getCalendarCount = ({ folder, accountEmail, tagName, appState }) => {
+    let count = 0;
+    if (accountEmail) {
+        count = appState.events.filter(e => e.sourceAccount === accountEmail).length;
+    } else if (tagName) {
+        let eventsToCheck = appState.currentAccount ?
+            appState.events.filter(e => e.sourceAccount === appState.currentAccount) :
+            appState.events;
+        count = eventsToCheck.filter(e => e.tags && e.tags.includes(tagName)).length;
+    } else if (folder.name === "All Calendars") {
+        count = appState.events.length;
+    }
+    return count;
+};

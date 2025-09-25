@@ -16,15 +16,10 @@ const Emails = async (state) => {
                         children() {
                             const parts = ["Email"];
                             if (state.currentAccount) {
-                                parts.push(" - ");
                                 parts.push({
                                     tagName: 'a',
                                     attributes: {
                                         href: '#',
-                                        onclick(event) {
-                                            event.preventDefault();
-                                            navigate('../account/index.html?account=' + encodeURIComponent(state.currentAccount), window.location.href);
-                                        }
                                     },
                                     children: [state.currentAccount]
                                 });
@@ -33,15 +28,41 @@ const Emails = async (state) => {
                         }
                     },
                     {
-                        tagName: "span",
+                        tagName: "div",
                         attributes: {
-                            class: "plugin-count"
+                            class: "plugin-header-controls"
                         },
-                        children: [() => {
-                            // Use the getter which computes filtered emails
-                            const count = state.filteredEmails.length;
-                            return `${count} email${count !== 1 ? 's' : ''}`;
-                        }]
+                        children: [
+                            {
+                                tagName: "span",
+                                attributes: {
+                                    class: "plugin-count"
+                                },
+                                children: [() => {
+                                    // Use the getter which computes filtered emails
+                                    const count = state.filteredEmails.length;
+                                    return `${count} email${count !== 1 ? 's' : ''}`;
+                                }]
+                            },
+                            {
+                                tagName: "button",
+                                attributes: {
+                                    class: "plugin-compose-btn",
+                                    title: "Compose New Email",
+                                    onclick: () => {
+                                        state.editingEmail = {}; // Initialize for composing a new email
+                                    }
+                                },
+                                children: [
+                                    {
+                                        tagName: "i",
+                                        attributes: {
+                                            class: "fas fa-plus"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             },

@@ -13,7 +13,6 @@ function getEmailsFromAccounts(userData) {
                     email.id ||= Date.now() + Math.random();
                     email.from ||= 'Unknown Sender';
                     email.subject ||= 'No Subject';
-                    email.preview ||= email.body?.substring(0, 100) || 'No preview available';
                     email.date ||= new Date().toISOString();
                     email.unread = email.unread !== undefined ? email.unread : true;
                     email.accountType = account.type;

@@ -30,6 +30,13 @@ html, body {
     color: #333;
 }
 
+.plugin-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .plugin-count {
     font-size: 14px;
     color: #666;
@@ -302,4 +309,24 @@ html, body {
     padding: 20px;
     border-top: 1px solid #e0e0e0;
     background: #f9f9f9;
+}
+
+.plugin-compose-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: #666;
+    margin-left: 8px;
+}
+
+.plugin-compose-btn:hover {
+    color: #333;
 }

@@ -400,3 +400,16 @@
 .mini-calendar-day.selected .mini-day-number {
     border: 2px solid #0056b3;
 }
+
+.calendar-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-navigation h1 {
+    flex: 1;
+    text-align: center;
+    margin: 0;
+    padding: 0 10px;  /* Adds 10px spacing on left and right */
+}

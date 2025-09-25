@@ -33,15 +33,40 @@ const Contacts = async (appState) => {
                         }
                     },
                     {
-                        tagName: "span",
+                        tagName: "div",
                         attributes: {
-                            class: "plugin-count"
+                            class: "plugin-header-controls"
                         },
-                        children: [() => {
-                            // Use the getter which computes filtered contacts
-                            const count = appState.filteredContacts.length;
-                            return `${count} contact${count !== 1 ? 's' : ''}`;
-                        }]
+                        children: [
+                            {
+                                tagName: "span",
+                                attributes: {
+                                    class: "plugin-count"
+                                },
+                                children: [() => {
+                                    const count = appState.filteredContacts.length;
+                                    return `${count} contact${count !== 1 ? 's' : ''}`;
+                                }]
+                            },
+                            {
+                                tagName: "button",
+                                attributes: {
+                                    class: "plugin-compose-btn",
+                                    title: "Add New Contact",
+                                    onclick: () => {
+                                        appState.editingContact = {}; // Initialize for adding a new contact
+                                    }
+                                },
+                                children: [
+                                    {
+                                        tagName: "i",
+                                        attributes: {
+                                            class: "fas fa-plus"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             },

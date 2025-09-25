@@ -35,67 +35,80 @@ const Calendar = async (state, folderData, user) => {
                     {
                         tagName: "div",
                         attributes: {
-                            class: "calendar-controls"
+                            class: "calendar-navigation"
                         },
                         children: [
                             {
                                 tagName: "button",
                                 attributes: {
-                                    class: "view-toggle",
-                                    onclick() {
-                                        state.currentView = 'monthly';
-                                    }
+                                    class: "nav-btn",
+                                    onclick: () => state.navigateCalendar(-1)
                                 },
-                                children: ["Month"]
+                                children: [
+                                    {
+                                        tagName: "i",
+                                        attributes: {
+                                            class: "fas fa-chevron-left"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                tagName: "h1",
+                                children: [state.headerTitle]
                             },
                             {
                                 tagName: "button",
                                 attributes: {
-                                    class: "view-toggle",
-                                    onclick() {
-                                        state.currentView = 'weekly';
+                                    class: "nav-btn",
+                                    onclick: () => state.navigateCalendar(1)
+                                },
+                                children: [
+                                    {
+                                        tagName: "i",
+                                        attributes: {
+                                            class: "fas fa-chevron-right"
+                                        }
                                     }
-                                },
-                                children: ["Week"]
-                            },
-                            {
-                                tagName: "button",
-                                attributes: {
-                                    class: "nav-button",
-                                    onclick() {
-                                        state.navigatePrevious();
-                                    }
-                                },
-                                children: ["◀"]
-                            },
-                            {
-                                tagName: "span",
-                                attributes: {
-                                    class: "current-period"
-                                },
-                                children: [() => state.headerTitle]
-                            },
-                            {
-                                tagName: "button",
-                                attributes: {
-                                    class: "nav-button",
-                                    onclick() {
-                                        state.navigateNext();
-                                    }
-                                },
-                                children: ["▶"]
+                                ]
                             }
                         ]
                     },
                     {
-                        tagName: "span",
+                        tagName: "div",
                         attributes: {
-                            class: "plugin-count"
+                            class: "plugin-header-controls"
                         },
-                        children: [() => {
-                            const count = state.filteredEvents.length;
-                            return `${count} event${count !== 1 ? 's' : ''}`;
-                        }]
+                        children: [
+                            {
+                                tagName: "span",
+                                attributes: {
+                                    class: "plugin-count"
+                                },
+                                children: [() => {
+                                    const count = state.filteredEvents.length;
+                                    return `${count} event${count !== 1 ? 's' : ''}`;
+                                }]
+                            },
+                            {
+                                tagName: "button",
+                                attributes: {
+                                    class: "plugin-compose-btn",
+                                    title: "Add New Event",
+                                    onclick: () => {
+                                        state.editingEvent = {}; // Initialize for adding a new event
+                                    }
+                                },
+                                children: [
+                                    {
+                                        tagName: "i",
+                                        attributes: {
+                                            class: "fas fa-plus"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             },
@@ -137,12 +150,6 @@ const Calendar = async (state, folderData, user) => {
                                 ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
                                     FolderItem({ folder: { name: tagNameToFolderName(tag), originalTag: tag, icon: tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
                                 )) : []),
-                                // Snoozed Emails category
-                                //FolderItem({ folder: { name: "Snoozed Emails", icon: "fas fa-clock" }, isSubfolder: false, accountEmail: null, tagName: "snoozed", appState: state }),
-                                // Scheduled Emails category
-                                //FolderItem({ folder: { name: "Scheduled Emails", icon: "fas fa-calendar-alt" }, isSubfolder: false, accountEmail: null, tagName: "scheduled", appState: state }),
-                                // Contact Reachout category
-                                //FolderItem({ folder: { name: "Contact Reachout", icon: "fas fa-user-friends" }, isSubfolder: false, accountEmail: null, tagName: "contact-reachout", appState: state })
                             ]);
                             
                             return folderItems;
