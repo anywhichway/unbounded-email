@@ -304,31 +304,7 @@ const Contact = async (contact, appState) => {
                             class: "edit-icon",
                             onclick(event) {
                                 event.stopPropagation();
-                                
-                                // Show dialog procedurally
-                                const dialog = document.querySelector('.dialog-overlay');
-                                if (dialog) {
-                                    dialog.style.display = 'flex';
-                                    
-                                    // Populate form fields with contact data
-                                    const avatarInput = dialog.querySelector('#dialog-avatar');
-                                    const nameInput = dialog.querySelector('#dialog-name');
-                                    const phoneInput = dialog.querySelector('#dialog-phone');
-                                    const emailInput = dialog.querySelector('#dialog-email');
-                                    const addressInput = dialog.querySelector('#dialog-address');
-                                    const notesInput = dialog.querySelector('#dialog-notes');
-                                    
-                                    if (avatarInput) avatarInput.value = contact.avatar || '';
-                                    if (nameInput) nameInput.value = contact.screenName || '';
-                                    if (phoneInput) phoneInput.value = contact.phone || '';
-                                    if (emailInput) emailInput.value = contact.email || '';
-                                    if (addressInput) addressInput.value = contact.address || '';
-                                    if (notesInput) notesInput.value = contact.notes || '';
-                                    
-                                    // Store reference to current contact for saving
-                                    dialog._currentContact = contact;
-                                    dialog._appState = appState;
-                                }
+                                appState.editingContact = contact;
                             }
                         },
                         children: [

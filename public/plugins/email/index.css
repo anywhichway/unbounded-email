@@ -317,6 +317,38 @@
     background-color: #0056b3;
 }
 
+.modal-content.email-maximized-modal {
+    max-width: 90vw;
+    width: 1200px;
+    padding: 0;
+    text-align: left;
+    background: transparent;
+    box-shadow: none;
+}
+
+.modal-content.email-compose-modal {
+    max-width: 600px;
+    width: 90%;
+    text-align: left;
+}
+
+.email-compose-modal .compose-input,
+.email-compose-modal .compose-textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+}
+
+.email-compose-modal .compose-textarea {
+    min-height: 200px;
+    resize: vertical;
+    font-family: inherit;
+}
+
 .no-emails {
     text-align: center;
     padding: 40px 20px;

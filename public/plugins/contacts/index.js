@@ -43,32 +43,36 @@ function updateFilteredContacts(appState) {
 }
 
 
-const getContactsCount = ({ folder, accountEmail, tagName, appState }) => {
+const getContactsCount = ({ folder, accountEmail, tagName, state }) => {
     let count = 0;
-    const getAllContacts = () => Object.values(appState.user.accounts).flatMap(account => account.contacts || []);
+    const getAllContacts = () => Object.values(state.user.accounts).flatMap(account => account.contacts || []);
     
     if (accountEmail) {
-        const account = appState.user.accounts[accountEmail];
+        const account = state.user.accounts[accountEmail];
         count = account ? (account.contacts || []).length : 0;
     } else if (tagName) {
-        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        let contactsToCheck = state.currentAccount ? (state.user.accounts[state.currentAccount]?.contacts || []) : getAllContacts();
         count = contactsToCheck.filter(c => c.tags && c.tags.includes(tagName)).length;
     } else if (folder.name === "All Contacts") {
         count = getAllContacts().length;
     } else if (folder.name === "Categories") {
-        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        let contactsToCheck = state.currentAccount ? (state.user.accounts[state.currentAccount]?.contacts || []) : getAllContacts();
         const uniqueTags = new Set(contactsToCheck.flatMap(c => c.tags || []));
         count = uniqueTags.size;
     } else if (folder.name === "Starred") {
-        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        let contactsToCheck = state.currentAccount ? (state.user.accounts[state.currentAccount]?.contacts || []) : getAllContacts();
         count = contactsToCheck.filter(c => c.starred).length;
     } else if (folder.name === "Frequently Contacted") {
-        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        let contactsToCheck = state.currentAccount ? (state.user.accounts[state.currentAccount]?.contacts || []) : getAllContacts();
         count = contactsToCheck.filter(c => c.frequentlyContacted).length;
     } else if (folder.name === "Scheduled") {
-        let contactsToCheck = appState.currentAccount ? (appState.user.accounts[appState.currentAccount]?.contacts || []) : getAllContacts();
+        let contactsToCheck = state.currentAccount ? (state.user.accounts[state.currentAccount]?.contacts || []) : getAllContacts();
         count = contactsToCheck.filter(c => c.scheduled).length;
     }
     return count;
 };
+
+const tagToName = (tag) => {
+    return tag.charAt(1).toUpperCase() + tag.slice(2);
+}
 

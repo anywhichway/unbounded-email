@@ -51,6 +51,7 @@
                 ],
                 "contacts": [
                     {
+                        "id": "contact1",
                         "screenName": "Alice",
                         "email": "alice@example.com",
                         "starred": true,
@@ -58,11 +59,13 @@
                         "frequentlyContacted": true
                     },
                     {
+                        "id": "contact2",
                         "screenName": "Bob",
                         "email": "bob@example.com",
                         "tags": ["#work"]
                     },
                     {
+                        "id": "contact3",
                         "screenName": "Mom",
                         "email": "mom@example.com",
                         "tags": ["#family"]
@@ -203,6 +206,7 @@
                 ],
                 "contacts": [
                     {
+                        "id": "contact4",
                         "screenName": "Juliana",
                         "email": "julianaperez_8@msn.com",
                         "tags": ["#family"],
@@ -210,17 +214,20 @@
                         "frequentlyContacted": true
                     },
                     {
+                        "id": "contact5",
                         "screenName": "Charlie",
                         "email": "charlie@example.com",
                         "tags": ["#friends"]
                     },
                     {
+                        "id": "contact6",
                         "screenName": "David",
                         "email": "david@example.com",
                         "tags": ["#work"],
                         "frequentlyContacted": true
                     },
                     {
+                        "id": "contact7",
                         "screenName": "Dad",
                         "email": "dad@example.com",
                         "tags": ["#family"],

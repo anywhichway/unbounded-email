@@ -159,17 +159,22 @@ function getEventsForWeek(events, startDate) {
     });
 }
 
-const getCalendarCount = ({ folder, accountEmail, tagName, appState }) => {
+const getCalendarCount = ({ folder, accountEmail, tagName, state }) => {
     let count = 0;
     if (accountEmail) {
-        count = appState.events.filter(e => e.sourceAccount === accountEmail).length;
+        count = state.events.filter(e => e.sourceAccount === accountEmail).length;
     } else if (tagName) {
-        let eventsToCheck = appState.currentAccount ?
-            appState.events.filter(e => e.sourceAccount === appState.currentAccount) :
-            appState.events;
+        let eventsToCheck = state.currentAccount ?
+            state.events.filter(e => e.sourceAccount === state.currentAccount) :
+            state.events;
         count = eventsToCheck.filter(e => e.tags && e.tags.includes(tagName)).length;
     } else if (folder.name === "All Calendars") {
-        count = appState.events.length;
+        count = state.events.length;
     }
     return count;
-};
+}
+
+const tagToName = (tag) => {
+    return tag.charAt(1).toUpperCase() + tag.slice(2);
+}
+

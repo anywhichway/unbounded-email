@@ -1,4 +1,5 @@
-const Email = async (email, appState) => {
+const Email = async (email, appState, options = {}) => {
+    const { isMaximized } = options;
     // Get tagIcons from appState or default to empty object
     const tagIcons = appState.tagIcons || {};
 
@@ -32,15 +33,52 @@ const Email = async (email, appState) => {
         return "";
     })();
 
+    // Helper for minimize/maximize buttons
+    function getMinimizeMaximizeButtons() {
+        return [
+            {
+                tagName: "button",
+                attributes: {
+                    class: "email-action-btn",
+                    title: "Minimize",
+                    onclick: (event) => {
+                        event.stopPropagation();
+                        email.expanded = false; // Always collapse the email
+                        if (isMaximized) {
+                            appState.closeMaximized(); // Also close the modal
+                        }
+                    }
+                },
+                children: [{ tagName: "i", attributes: { class: "fas fa-minus" } }]
+            },
+            {
+                tagName: "button",
+                attributes: {
+                    class: "email-action-btn",
+                    title: isMaximized ? "Restore" : "Maximize",
+                    onclick: (event) => {
+                        event.stopPropagation();
+                        if (isMaximized) {
+                            appState.closeMaximized();
+                        } else {
+                            appState.maximizeEmail(email);
+                        }
+                    }
+                },
+                children: [{ tagName: "i", attributes: { class: isMaximized ? "far fa-window-restore" : "far fa-clone" } }]
+            }
+        ];
+    }
+
     // For showing the ellipsis as a clickable span
     function getPreviewChildren(update) {
-        if (email.expanded) {
+        if (email.expanded || isMaximized) {
             return [
                 {
                     tagName: "div",
                     attributes: {
                         class: "email-expanded-content",
-                        style: "position: relative; height:200px;overflow:auto;margin-top:4px;background:#fafbfc;border:1px solid #eee;padding:8px;border-radius:4px;"
+                        style: `position: relative; height:${isMaximized ? '60vh' : '200px'};overflow:auto;margin-top:4px;background:#fafbfc;border:1px solid #eee;padding:8px;border-radius:4px;`
                     },
                     children: [
                         {
@@ -53,26 +91,7 @@ const Email = async (email, appState) => {
                             attributes: {
                                 style: "position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 1;"
                             },
-                            children: [
-                                {
-                                    tagName: "button",
-                                    attributes: {
-                                        class: "email-action-btn",
-                                        title: "Minimize",
-                                        onclick: (event) => { event.stopPropagation(); email.expanded = false; }
-                                    },
-                                    children: [{ tagName: "i", attributes: { class: "fas fa-minus" } }]
-                                },
-                                {
-                                    tagName: "button",
-                                    attributes: {
-                                        class: "email-action-btn",
-                                        title: "Maximize",
-                                        onclick: (event) => { event.stopPropagation(); appState.maximizeEmail(email); }
-                                    },
-                                    children: [{ tagName: "i", attributes: { class: "far fa-clone" } }]
-                                }
-                            ]
+                            children: getMinimizeMaximizeButtons()
                         }
                     ]
                 }
@@ -108,10 +127,10 @@ const Email = async (email, appState) => {
                 if (email.starred) classes += ' starred';
                 if (email.scheduled) classes += ' scheduled';
                 if (email.snoozed) classes += ' snoozed';
-                if (email.expanded) classes += ' expanded';
+                if (email.expanded || isMaximized) classes += ' expanded';
                 return classes;
             },
-            style: "position: relative; display: flex; flex-direction: column;" + (email.expanded ? " height: 300px;" : ""),
+            style: "position: relative; display: flex; flex-direction: column;" + ((email.expanded && !isMaximized) ? " height: 300px;" : ""),
             'data-id': email.id,
             onclick(event) {
                 // Prevent detail view from opening when clicking action buttons or the preview area
@@ -180,26 +199,6 @@ const Email = async (email, appState) => {
                                             style: "flex: 0; margin-left: auto; display: flex; gap: 4px;"
                                         },
                                         children: [
-                                            () => email.expanded ? render([
-                                                {
-                                                    tagName: "button",
-                                                    attributes: {
-                                                        class: "email-action-btn",
-                                                        title: "Minimize",
-                                                        onclick: (event) => { event.stopPropagation(); email.expanded = false; }
-                                                    },
-                                                    children: [{ tagName: "i", attributes: { class: "fas fa-minus" } }]
-                                                },
-                                                {
-                                                    tagName: "button",
-                                                    attributes: {
-                                                        class: "email-action-btn",
-                                                        title: "Maximize",
-                                                        onclick: (event) => { event.stopPropagation(); appState.maximizeEmail(email); }
-                                                    },
-                                                    children: [{ tagName: "i", attributes: { class: "far fa-clone" } }]
-                                                }
-                                            ]) : null,
                                             {
                                                 tagName: "button",
                                                 attributes: {

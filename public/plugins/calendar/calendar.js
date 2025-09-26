@@ -14,7 +14,7 @@ const Calendar = async (state, folderData, user) => {
                     {
                         tagName: "h1",
                         children() {
-                            const parts = ["Calendar"];
+                            const parts = [state.currentTag ? tagToName(state.currentTag) : "Calendar"];
                             if (state.currentAccount) {
                                 parts.push(" - ");
                                 parts.push({
@@ -129,7 +129,7 @@ const Calendar = async (state, folderData, user) => {
                             
                             const folderItems = await Promise.all([
                                 // All Calendars folder
-                                FolderItem({ folder: { name: "All Calendars", icon: "fas fa-calendar" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "All Calendars", icon: "fas fa-calendar" }, isSubfolder: false, accountEmail: null, tagName: null, state }),
                                 // Account folders
                                 ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email => {
                                     return FolderItem({ 
@@ -141,14 +141,14 @@ const Calendar = async (state, folderData, user) => {
                                         isSubfolder: true, 
                                         accountEmail: email, 
                                         tagName: null, 
-                                        appState: state 
+                                        state 
                                     });
                                 })) : []),
                                 // Categories folder
-                                FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, state }),
                                 // Categories subfolders (tags)
                                 ...(tags.length > 0 ? await Promise.all(tags.map(tag =>
-                                    FolderItem({ folder: { name: tagNameToFolderName(tag), originalTag: tag, icon: tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, appState: state })
+                                    FolderItem({ folder: { name: tagNameToFolderName(tag), originalTag: tag, icon: tagIcons[tag] || "fas fa-tag" }, isSubfolder: true, accountEmail: null, tagName: tag, state })
                                 )) : []),
                             ]);
                             
@@ -171,6 +171,10 @@ const Calendar = async (state, folderData, user) => {
                         ]
                     }
                 ]
+            },
+            () => {
+                if (!state.editingEvent) return null;
+                return ComposeEvent(state);
             }
         ]
     });

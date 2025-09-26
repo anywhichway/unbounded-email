@@ -26,3 +26,7 @@ function getEmailsFromAccounts(userData) {
     // Sort emails by date (newest first)
     return emails.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
+
+const tagToName = (tag,isTag) => {
+    return isTag ? tag.charAt(1).toUpperCase() + tag.slice(2) : tag;
+}

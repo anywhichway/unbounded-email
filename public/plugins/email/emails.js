@@ -14,12 +14,17 @@ const Emails = async (state) => {
                     {
                         tagName: "h1",
                         children() {
-                            const parts = ["Email"];
+                            const parts = [state.currentTag || state.currentFolder ? tagToName(state.currentTag || state.currentFolder,!!state.currentTag) : "Inbox"];
                             if (state.currentAccount) {
+                                parts.push(" - ");
                                 parts.push({
                                     tagName: 'a',
                                     attributes: {
                                         href: '#',
+                                        onclick(event) {
+                                            event.preventDefault();
+                                            navigate('../account/index.html?account=' + encodeURIComponent(state.currentAccount), window.location.href);
+                                        }
                                     },
                                     children: [state.currentAccount]
                                 });
@@ -48,9 +53,9 @@ const Emails = async (state) => {
                                 tagName: "button",
                                 attributes: {
                                     class: "plugin-compose-btn",
-                                    title: "Compose New Email",
+                                    title: "Add New Email",
                                     onclick: () => {
-                                        state.editingEmail = {}; // Initialize for composing a new email
+                                        state.editingEmail = {}; // Initialize for adding a new email
                                     }
                                 },
                                 children: [
@@ -109,21 +114,21 @@ const Emails = async (state) => {
 
                             const folderItems = await Promise.all([
                                 // Inbox folder
-                                FolderItem({ folder: { name: "Inbox", icon: "fas fa-inbox" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "Inbox", icon: "fas fa-inbox" }, isSubfolder: false, accountEmail: null, tagName: null,  state }),
                                 // Inbox subfolders (accounts)
                                 ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email =>
-                                    FolderItem({ folder: { email: email, name: email, icon: state.getAccountIconClass(email) }, isSubfolder: true, accountEmail: email, tagName: null, appState: state })
+                                    FolderItem({ folder: { email: email, name: email, icon: state.getAccountIconClass(email) }, isSubfolder: true, accountEmail: email, tagName: null,  state })
                                 )) : []),
                                 // Other standard email folders
-                                FolderItem({ folder: { name: "Drafts", icon: "fas fa-edit" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Sent", icon: "fas fa-paper-plane" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Spam", icon: "fas fa-exclamation-triangle" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
-                                FolderItem({ folder: { name: "Trash", icon: "fas fa-trash" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "Drafts", icon: "fas fa-edit" }, isSubfolder: false, accountEmail: null, tagName: null,  state }),
+                                FolderItem({ folder: { name: "Sent", icon: "fas fa-paper-plane" }, isSubfolder: false, accountEmail: null, tagName: null,  state }),
+                                FolderItem({ folder: { name: "Spam", icon: "fas fa-exclamation-triangle" }, isSubfolder: false, accountEmail: null, tagName: null,  state }),
+                                FolderItem({ folder: { name: "Trash", icon: "fas fa-trash" }, isSubfolder: false, accountEmail: null, tagName: null,  state }),
                                 // Categories folder
-                                FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null, appState: state }),
+                                FolderItem({ folder: { name: "Categories", icon: "fas fa-tags" }, isSubfolder: false, accountEmail: null, tagName: null,  state }),
                                 // Categories subfolders
                                 ...(categorySubfolders.length > 0 ? await Promise.all(categorySubfolders.map(item =>
-                                    FolderItem({ folder: { name: item.name, icon: item.icon }, isSubfolder: true, accountEmail: null, tagName: item.tagName, appState: state })
+                                    FolderItem({ folder: { name: item.name, icon: item.icon }, isSubfolder: true, accountEmail: null, tagName: item.tagName,  state })
                                 )) : [])
                             ]);
 
@@ -161,6 +166,37 @@ const Emails = async (state) => {
                         ]
                     }
                 ]
+            },
+            () => {
+                if (!state.editingEmail) return null;
+                return Compose(state);
+            },
+            () => {
+                if (!state.maximizedEmail) return null;
+
+                return {
+                    tagName: "div",
+                    attributes: {
+                        class: "modal-overlay",
+                        style: "display: flex; align-items: center; justify-content: center;",
+                        onclick(event) {
+                            if (event.target.classList.contains('modal-overlay')) {
+                                state.closeMaximized();
+                            }
+                        }
+                    },
+                    children: [
+                        {
+                            tagName: "div",
+                            attributes: {
+                                class: "modal-content email-maximized-modal"
+                            },
+                            async children() {
+                                return [await Email(state.maximizedEmail, state, { isMaximized: true })];
+                            }
+                        }
+                    ]
+                };
             }
         ]
     });

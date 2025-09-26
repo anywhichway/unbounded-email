@@ -13,6 +13,7 @@
         <script src="./index.js"></script>
         <script src="./calendar.js"></script>
         <script src="./events.js"></script>
+        <script src="./compose-event.js"></script>
         <script src="../folder-item.js"></script>
     </head>
     <body>
@@ -50,6 +51,7 @@
                 currentTag: null,
                 currentFolder: null,
                 selectedFolderId: 'folder-All Calendars',
+                editingEvent: null,
                 currentView: 'monthly',
                 currentDate: new Date(),
                 selectedDate: new Date(),
@@ -238,14 +240,7 @@
                                         attributes: { class: 'day-number' },
                                         children: [day.toString()]
                                     },
-                                    ...dayEvents.slice(0, 3).map(event => ({
-                                        tagName: 'div',
-                                        attributes: {
-                                            class: 'calendar-event',
-                                            style: `background-color: ${event.color}`
-                                        },
-                                        children: [event.title]
-                                    })),
+                                    ...dayEvents.slice(0, 3).map(event => Event(event, this)),  // Use the Event component for clickability
                                     ...(dayEvents.length > 3 ? [{
                                         tagName: 'div',
                                         attributes: { class: 'more-events' },

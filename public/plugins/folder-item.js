@@ -1,5 +1,5 @@
 const FolderItem = async (props) => {
-    const { folder, isSubfolder = false, accountEmail = null, tagName = null, appState } = props;
+    const { folder, isSubfolder = false, accountEmail = null, tagName = null, state } = props;
 
     // Add error handling for undefined folder
     if (!folder) {
@@ -18,7 +18,7 @@ const FolderItem = async (props) => {
                 let classes = isSubfolder ? "folder-item subfolder" : "folder-item";
                 // Standardized folderId logic
                 const folderId = tagName ? `category-${tagName}` : (accountEmail ? `account-${accountEmail.replace('@', '-at-')}` : `folder-${folder.name}`);
-                if (appState.selectedFolderId === folderId) {
+                if (state.selectedFolderId === folderId) {
                     classes += " selected"; // Standardized to 'selected'
                 }
                 return classes;
@@ -26,11 +26,11 @@ const FolderItem = async (props) => {
             onclick() {
                 if (tagName) {
                     // Use folder.originalTag if it exists (for contacts/calendar), otherwise tagName
-                    appState.selectFolder('tag', folder.originalTag || tagName);
+                    state.selectFolder('tag', folder.originalTag || tagName);
                 } else if (accountEmail) {
-                    appState.selectFolder('account', accountEmail);
+                    state.selectFolder('account', accountEmail);
                 } else {
-                    appState.selectFolder('folder', folder.name);
+                    state.selectFolder('folder', folder.name);
                 }
             }
         },
@@ -54,11 +54,11 @@ const FolderItem = async (props) => {
                     class: "folder-count"
                 },
                 children: [() => {
-                    if (typeof appState.getCount !== 'function') {
-                        console.error("FolderItem: `appState.getCount` is not a function.", props);
+                    if (typeof state.getCount !== 'function') {
+                        console.error("FolderItem: `state.getCount` is not a function.", props);
                         return "";
                     }
-                    const count = appState.getCount({ folder, accountEmail, tagName, appState });
+                    const count = state.getCount({ folder, accountEmail, tagName, state });
                     return count > 0 ? count.toString() : "";
                 }]
             }

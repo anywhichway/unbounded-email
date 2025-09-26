@@ -13,6 +13,7 @@
         <script src="./index.js"></script>
         <script src="./emails.js"></script>
         <script src="./email.js"></script>
+        <script src="./compose.js"></script>
         <script src="../folder-item.js"></script>
     </head>
     <body>
@@ -34,13 +35,13 @@
             const tags = [...new Set(getEmailsFromAccounts(user).flatMap(e => e.tags || []))];  // Temporary for initial tags; will be reactive via getter
             const tagIcons = ui.tagIcons || {};
 
-            const getEmailCount = ({ folder, accountEmail, tagName, appState }) => {
+            const getEmailCount = ({ folder, accountEmail, tagName, state }) => {
                 let count = 0;
-                const allEmails = appState.emails;
+                const allEmails = state.emails;
 
                 if (tagName) {
                     count = allEmails.filter(email => {
-                        if (appState.currentAccount && email.sourceAccount !== appState.currentAccount) {
+                        if (state.currentAccount && email.sourceAccount !== state.currentAccount) {
                             return false;
                         }
                         if (tagName === 'starred') return email.starred;
@@ -53,7 +54,7 @@
                 } else {
                     const folderName = folder.name;
                     count = allEmails.filter(email => {
-                        if (appState.currentAccount && email.sourceAccount !== appState.currentAccount) {
+                        if (state.currentAccount && email.sourceAccount !== state.currentAccount) {
                             return false;
                         }
                         return email.folder === folderName;
@@ -71,6 +72,7 @@
                 currentFolder: null,
                 selectedFolderId: 'folder-Inbox',
                 editingEmail: null,
+                maximizedEmail: null,  // New: Tracks the currently maximized email
                 getCount: getEmailCount,
                 getAccountIconClass,
                 get emails() {  // Made reactive getter dependent on user (like contacts' filteredContacts)
@@ -158,6 +160,12 @@
                             delete email.scheduled;
                         }
                     }
+                },
+                maximizeEmail(email) {  // New: Opens the modal for the given email
+                    this.maximizedEmail = email;
+                },
+                closeMaximized() {  // New: Closes the modal
+                    this.maximizedEmail = null;
                 }
             });
 
