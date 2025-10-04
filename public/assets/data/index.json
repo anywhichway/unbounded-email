@@ -317,11 +317,11 @@
                 "tagName": "div",
                 "attributes": {
                     "class": "plugin-icon",
-                    "title": "Chat",
-                    "href": "./plugins/chat/index.html",
+                    "title": "Spaces",
+                    "href": "./plugins/spaces/index.html",
                     "target": "#pluginView"
                 },
-                "children": ["💬"]
+                "children": ["⚛️"]
             },
             {
                 "tagName": "div",

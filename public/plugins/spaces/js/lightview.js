@@ -211,17 +211,6 @@ const dateMutatingMethods = [
         return f;
     }
 
-    const interpolateHTML = async (tnode,emplate, stateObj) => {
-        const effect = createEffect(async () => {
-                const renderer = await templateRenderer(template);
-                const newHTML = await renderer(stateObj);
-                
-                // Always update the existing node
-                node.innerHTML = newHTML;
-            });
-        await effect();
-    }
-
     async function render(description, options = {}) {
         description = await description;
         
@@ -363,8 +352,7 @@ const dateMutatingMethods = [
 
     // Browser-specific DOM enhancements
     // Utility function to handle src attributes and fetch content
-    async function handleSrc(node,src,{state=node.state,nonce}={})  {
-        state ||= node.hasAttribute("state") ? window.Lightview.state.get(node.getAttribute("state"))||{} : {};
+    async function handleSrc(node,src,{state=node.state||{},nonce}={})  {
         if (src && ["./", "../", "http"].some(text => src.startsWith(text))) {
             src = new URL(src,document.baseURI).href;
             try {
@@ -380,35 +368,20 @@ const dateMutatingMethods = [
                     const html = await response.text();
                     if (html.includes("<html")) {
                         const fragment = new DOMParser().parseFromString(html, "text/html");
-                        // need to add head handling here which is an augmentation process not a removal or replacement process
-                        document.head.append(...Array.from(fragment.head.children).filter(el => {
-                            return !document.head.querySelector(`${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${el.className ? `.${el.className.split(' ').join('.')}` : ''}`);
-                        }));
-                        interpolateHTML(node,fragment.body.innerHTML,{state});
+                        node.innerHTML = fragment.body.innerHTML;
                     } else {
-                        interpolateHTML(node,html,{state});
+                        node.innerHTML = html;
                     }
                 } else if (contentType === "application/json") {
-                    let text = await response.text();
-                    const effect = createEffect(async () => {
-                        const renderer = await templateRenderer(description);
-                        const newText = await renderer(stateObj);
-                        let json;
-                        try {
-                            json = JSON.parse(newText);
-                        } catch (e) {
-                            json = { span: "Error parsing JSON: " + e.message + newText };
-                        }
-                        const childNode = await render( json, {state,nonce});
-                        if(node.contentDocument) {
-                            node.contentDocument.childNodes.forEach(node => node.remove());
-                            childNode instanceof DocumentFragment ? node.contentDocument.append(...childNode.childNodes) : node.append(childNode);
-                        } else {
-                            node.innerHTML = "";
-                            childNode instanceof DocumentFragment ? node.append(...childNode.childNodes) : node.append(childNode);
-                        }
-                    });
-                    await effect();
+                    const childNode = await render( await response.json(), {state,nonce});
+                    if(node.contentDocument) {
+                        node.contentDocument.childNodes.forEach(node => node.remove());
+                        childNode instanceof DocumentFragment ? node.contentDocument.append(...childNode.childNodes) : node.append(childNode);
+                    } else {
+                        node.innerHTML = "";
+                        childNode instanceof DocumentFragment ? node.append(...childNode.childNodes) : node.append(childNode);
+                    }
+                    
                 }
             } catch (e) {
                 console.error('Error fetching src:', e);
