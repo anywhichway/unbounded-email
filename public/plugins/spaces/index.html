@@ -5,12 +5,100 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="manifest.json">
 <title>Spaces</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<link rel="stylesheet" href="../index.css">
 <link rel="stylesheet" href="main-styles.css">
 <link id="active-theme-stylesheet" rel="stylesheet" href="themes/light.css">
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+<script src="../../assets/js/lightview.js"></script>
+<script>
+    const lightview = Lightview("browser");
+    const {render, state, navigate} = lightview;
+</script>
 <script src="index.js"></script>
+<script src="spaces.js"></script>
+<script src="../folder-item.js"></script>
 </head>
 <body>
+    <script type="module" id="init">
+        const {user, ui} = await lightview.import("./", { publish: true, subscribe: true });
+
+        const getAccountIconClass = (accountEmail) => {
+            const account = user.accounts[accountEmail];
+            const accountType = account?.type;
+            return ui.accountIcons?.[accountType] || ui.accountIcons?.default || 'fas fa-envelope';
+        };
+
+        // Get user accounts from user structure
+        const userAccounts = user.accounts || {};
+
+        // Reactive state for spaces
+        const appState = state({
+            user: user,
+            currentSection: 'chat', // default to chat
+            selectedFolderId: 'folder-Chat',
+            getAccountIconClass,
+            selectFolder(folderType, value) {
+                if (folderType === 'folder') {
+                    // Map folder names to sections
+                    const sectionMap = {
+                        'Spaces': 'chat', // default to chat
+                        'Chat': 'chat',
+                        'Video Chat': 'video',
+                        'Audio Chat': 'audio',
+                        'Screen Share': 'screen',
+                        'Whiteboard': 'whiteboard',
+                        'Kanban': 'kanban',
+                        'Documents': 'documents',
+                        'Settings': 'settings',
+                        'Export Workspace': 'export'
+                    };
+                    this.currentSection = sectionMap[value] || 'chat';
+                    this.selectedFolderId = `folder-${value}`;
+                    // Also update the visible section
+                    if (this.currentSection === 'export') {
+                        window.onClickExportWorkspace();
+                    } else {
+                        showSection(this.currentSection);
+                    }
+                } else if (folderType === 'account') {
+                    // For accounts, do nothing for now
+                    console.log('Account clicked:', value);
+                }
+            }
+        });
+
+            document.getElementById("spaces-app").replaceWith(await Spaces(appState))
+
+    // Define showSection to show the appropriate section
+    window.showSection = (section) => {
+        const sections = ['chatSection', 'videoChatSection', 'audioChatSection', 'screenShareSection', 'whiteboardSection', 'kanbanSection', 'documentsSection', 'settingsSection'];
+        sections.forEach(sec => {
+            const el = document.getElementById(sec);
+            if (el) {
+                if (sec === section + 'Section') {
+                    el.classList.remove('hidden');
+                    el.classList.add('active');
+                } else {
+                    el.classList.add('hidden');
+                    el.classList.remove('active');
+                }
+            }
+        });
+    };
+</script>
+    </script>
+<div id="spaces-app"></div>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .catch(err => console.log('SW registration failed'));
+}
+</script>
+<iframe id="printFrame" style="display: none;"></iframe>
+<script type="module" src="main.js"></script>
+</body>
+</html>
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute; overflow:hidden" class="hidden">
   <defs>
 
