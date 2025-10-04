@@ -1,7 +1,7 @@
-let chatHistory = [];
+let { state } = Lightview();
+let workspaceState;
+
 let incomingFileBuffers = new Map();
-let channels = [];
-let currentActiveChannelId = null;
 let currentReplyParentId = null; // NEW: To track which message we are replying to
 const MAX_THREAD_DEPTH = 4; // NEW: Max reply depth
 
@@ -72,6 +72,15 @@ const IMAGE_MIME_TYPES = [
 ];
 const MIN_PREVIEW_DIM = 140;
 const MAX_PREVIEW_DIM = 240;
+
+function debounce(func, delay) {
+    let timeout;
+    return function (...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), delay);
+    };
+}
 
 async function generateImagePreview(file) {
     return new Promise((resolve) => {
@@ -178,17 +187,21 @@ function selectChatDomElements() {
 }
 
 
-function debounce(func, delay) {
-    let timeout;
-    return function (...args) {
-        const context = this;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), delay);
-    };
-}
-
 export function initShareFeatures(dependencies) {
     selectChatDomElements();
+
+    const saveSpaceToLocalStorageDep = dependencies.saveSpaceToLocalStorage;
+    const debouncedSave = debounce(() => {
+        if (saveSpaceToLocalStorageDep) saveSpaceToLocalStorageDep();
+    }, 1000);
+
+    workspaceState = state({
+        chatHistory: [],
+        channels: [],
+        currentActiveChannelId: null,
+    });
+
+    workspaceState.onChange(debouncedSave, ['*']);
 
 
     logStatusDep = dependencies.logStatus;
@@ -253,8 +266,8 @@ export function initShareFeatures(dependencies) {
     if (importedState && getIsHostDep && getIsHostDep()) {
         loadChatHistoryFromImport(importedState.chatHistory || []);
         if (importedState.channels) {
-            channels = importedState.channels;
-            currentActiveChannelId = importedState.currentActiveChannelIdForImport || (channels.length > 0 ? channels[0].id : null);
+            workspaceState.channels.push(...importedState.channels);
+            workspaceState.currentActiveChannelId = importedState.currentActiveChannelIdForImport || (workspaceState.channels.length > 0 ? workspaceState.channels[0].id : null);
         }
         if (whiteboardModuleRef) whiteboardModuleRef.loadWhiteboardData(importedState.whiteboardHistory || []);
         if (kanbanModuleRef) kanbanModuleRef.loadKanbanData(importedState.kanbanData || { columns: [] });
@@ -264,14 +277,14 @@ export function initShareFeatures(dependencies) {
     }
     
     if (getIsHostDep && getIsHostDep()) {
-        const generalChannelExists = channels.some(ch => ch.name === "#general");
+        const generalChannelExists = workspaceState.channels.some(ch => ch.name === "#general");
         if (!generalChannelExists) {
-            _createAndBroadcastChannel("#general", channels.length === 0); 
+            _createAndBroadcastChannel("#general", workspaceState.channels.length === 0); 
         }
         if (documentModuleRef) documentModuleRef.ensureDefaultDocument();
     } else {
-        if (channels.length > 0 && !currentActiveChannelId) {
-            setActiveChannel(channels[0].id, false);
+        if (workspaceState.channels.length > 0 && !workspaceState.currentActiveChannelId) {
+            setActiveChannel(workspaceState.channels[0].id, false);
         }
     }
 
@@ -286,15 +299,62 @@ export function initShareFeatures(dependencies) {
         handleCreateChannel, handleInitialChannels, 
 
         
-        handleDrawCommand: (data, peerId) => whiteboardModuleRef.handleDrawCommand(data, peerId),
-        handleInitialWhiteboard: (data, peerId) => whiteboardModuleRef.handleInitialWhiteboard(data, peerId, getIsHostDep),
-        handleKanbanUpdate: (data, peerId) => kanbanModuleRef.handleKanbanUpdate(data, peerId, localGeneratedPeerIdDep),
-        handleInitialKanban: (data, peerId) => kanbanModuleRef.handleInitialKanban(data, peerId, getIsHostDep, localGeneratedPeerIdDep),
-        handleInitialDocuments: (data, peerId) => documentModuleRef.handleInitialDocuments(data, peerId),
-        handleCreateDocument: (data, peerId) => documentModuleRef.handleCreateDocument(data, peerId),
-        handleRenameDocument: (data, peerId) => documentModuleRef.handleRenameDocument(data, peerId),
-        handleDeleteDocument: (data, peerId) => documentModuleRef.handleDeleteDocument(data, peerId),
-        handleDocumentContentUpdate: (data, peerId) => documentModuleRef.handleDocumentContentUpdate(data, peerId),
+        handleDrawCommand: (data, peerId) => {
+            whiteboardModuleRef.handleDrawCommand(data, peerId);
+            if (whiteboardModuleRef) workspaceState.whiteboardHistory = whiteboardModuleRef.getWhiteboardHistory();
+        },
+        handleInitialWhiteboard: (data, peerId) => {
+            whiteboardModuleRef.handleInitialWhiteboard(data, peerId, getIsHostDep);
+            if (whiteboardModuleRef) workspaceState.whiteboardHistory = whiteboardModuleRef.getWhiteboardHistory();
+        },
+        handleKanbanUpdate: (data, peerId) => {
+            kanbanModuleRef.handleKanbanUpdate(data, peerId, localGeneratedPeerIdDep);
+            if (kanbanModuleRef) workspaceState.kanbanData = kanbanModuleRef.getKanbanData();
+        },
+        handleInitialKanban: (data, peerId) => {
+            kanbanModuleRef.handleInitialKanban(data, peerId, getIsHostDep, localGeneratedPeerIdDep);
+            if (kanbanModuleRef) workspaceState.kanbanData = kanbanModuleRef.getKanbanData();
+        },
+        handleInitialDocuments: (data, peerId) => {
+            documentModuleRef.handleInitialDocuments(data, peerId);
+            if (documentModuleRef) {
+                const docData = documentModuleRef.getDocumentShareData();
+                workspaceState.documents = docData.docs;
+                workspaceState.currentActiveDocumentId = docData.activeId;
+            }
+        },
+        handleCreateDocument: (data, peerId) => {
+            documentModuleRef.handleCreateDocument(data, peerId);
+            if (documentModuleRef) {
+                const docData = documentModuleRef.getDocumentShareData();
+                workspaceState.documents = docData.docs;
+                workspaceState.currentActiveDocumentId = docData.activeId;
+            }
+        },
+        handleRenameDocument: (data, peerId) => {
+            documentModuleRef.handleRenameDocument(data, peerId);
+            if (documentModuleRef) {
+                const docData = documentModuleRef.getDocumentShareData();
+                workspaceState.documents = docData.docs;
+                workspaceState.currentActiveDocumentId = docData.activeId;
+            }
+        },
+        handleDeleteDocument: (data, peerId) => {
+            documentModuleRef.handleDeleteDocument(data, peerId);
+            if (documentModuleRef) {
+                const docData = documentModuleRef.getDocumentShareData();
+                workspaceState.documents = docData.docs;
+                workspaceState.currentActiveDocumentId = docData.activeId;
+            }
+        },
+        handleDocumentContentUpdate: (data, peerId) => {
+            documentModuleRef.handleDocumentContentUpdate(data, peerId);
+            if (documentModuleRef) {
+                const docData = documentModuleRef.getDocumentShareData();
+                workspaceState.documents = docData.docs;
+                workspaceState.currentActiveDocumentId = docData.activeId;
+            }
+        },
 
         redrawWhiteboardFromHistoryIfVisible: (force) => whiteboardModuleRef.redrawWhiteboardFromHistoryIfVisible(force),
         resizeWhiteboardAndRedraw: () => whiteboardModuleRef.resizeWhiteboardAndRedraw(),
@@ -376,7 +436,7 @@ function initChat() {
 
 // NEW: Function to start a reply to a specific message
 function startReplyToMessage(msgId) {
-    const parentMessage = chatHistory.find(m => m.msgId === msgId);
+    const parentMessage = workspaceState.chatHistory.find(m => m.msgId === msgId);
     if (!parentMessage) return;
 
     currentReplyParentId = msgId;
@@ -453,23 +513,23 @@ function _createAndBroadcastChannel(channelName, isDefault = false) {
     }
     saneChannelName = saneChannelName.replace(/\s+/g, '-').toLowerCase(); 
 
-    if (channels.find(ch => ch.name === saneChannelName)) {
+    if (workspaceState.channels.find(ch => ch.name === saneChannelName)) {
         if(logStatusDep && !isDefault) {
             const wasIntentionalCreation = newChannelNameInput && newChannelNameInput.value.trim().toLowerCase().includes(userProvidedName.toLowerCase());
             if (wasIntentionalCreation) {
                  logStatusDep(`Channel "${saneChannelName}" already exists.`, true);
             }
         }
-        return channels.find(ch => ch.name === saneChannelName);
+        return workspaceState.channels.find(ch => ch.name === saneChannelName);
     }
 
     const newChannel = { id: `ch-${Date.now()}-${Math.random().toString(36).substring(2,5)}`, name: saneChannelName };
-    channels.push(newChannel);
+    workspaceState.channels.push(newChannel);
     
     if (sendCreateChannelDep) {
         sendCreateChannelDep(newChannel); 
     }
-    if (isDefault || channels.length === 1) { 
+    if (isDefault || workspaceState.channels.length === 1) { 
         setActiveChannel(newChannel.id, false);
     }
     renderChannelList();
@@ -483,7 +543,7 @@ function handleAddChannelUI() {
     const createdChannel = _createAndBroadcastChannel(channelName);
     if (createdChannel) {
         newChannelNameInput.value = '';
-        if(logStatusDep && !channels.find(ch => ch.id === createdChannel.id && ch.name === createdChannel.name && channels.indexOf(ch) < channels.length -1 )) {
+        if(logStatusDep && !workspaceState.channels.find(ch => ch.id === createdChannel.id && ch.name === createdChannel.name && workspaceState.channels.indexOf(ch) < workspaceState.channels.length -1 )) {
             logStatusDep(`Channel "${createdChannel.name}" created.`);
         }
     }
@@ -492,12 +552,12 @@ function handleAddChannelUI() {
 function renderChannelList() {
     if (!channelListDiv) return;
     channelListDiv.innerHTML = '';
-    channels.forEach(channel => {
+    workspaceState.channels.forEach(channel => {
         const channelItem = document.createElement('div');
         channelItem.classList.add('channel-list-item');
         channelItem.textContent = channel.name;
         channelItem.dataset.channelId = channel.id;
-        if (channel.id === currentActiveChannelId) {
+        if (channel.id === workspaceState.currentActiveChannelId) {
             channelItem.classList.add('active');
         }
         channelItem.addEventListener('click', () => setActiveChannel(channel.id));
@@ -511,11 +571,11 @@ function renderChannelList() {
 }
 
 function setActiveChannel(channelId, clearNotifications = true) {
-    if (currentActiveChannelId === channelId && !clearNotifications) {
+    if (workspaceState.currentActiveChannelId === channelId && !clearNotifications) {
         renderChannelList(); 
         return;
     }
-    currentActiveChannelId = channelId;
+    workspaceState.currentActiveChannelId = channelId;
     cancelReply(); // NEW: Cancel reply when switching channels
     renderChannelList(); 
     displayChatForCurrentChannel();
@@ -527,7 +587,7 @@ function setActiveChannel(channelId, clearNotifications = true) {
         }
     }
     if(messageInput) { 
-        const activeChannel = channels.find(c=>c.id === channelId);
+        const activeChannel = workspaceState.channels.find(c=>c.id === channelId);
         messageInput.placeholder = `Message ${activeChannel?.name || (currentRoomIdDep || '')}`;
     }
 }
@@ -537,8 +597,8 @@ function displayChatForCurrentChannel() {
     if (!chatArea) return;
     chatArea.innerHTML = '';
 
-    const messagesForChannel = chatHistory.filter(msg => 
-        (msg.channelId === currentActiveChannelId) || // Messages in the channel
+    const messagesForChannel = workspaceState.chatHistory.filter(msg => 
+        (msg.channelId === workspaceState.currentActiveChannelId) || // Messages in the channel
         (msg.isSystem && !msg.pmInfo) // System messages that aren't PM confirmations
     );
 
@@ -710,7 +770,7 @@ function addMessageToHistoryAndDisplay(msgData, isSelf = false, isSystem = false
     let channelIdForMsg = msgData.channelId;
     
     if (isSelf && !isSystem && !msgData.pmInfo && !msgData.fileMeta) {
-        channelIdForMsg = currentActiveChannelId;
+        channelIdForMsg = workspaceState.currentActiveChannelId;
     }
 
     const fullMsgObject = {
@@ -722,13 +782,13 @@ function addMessageToHistoryAndDisplay(msgData, isSelf = false, isSystem = false
         isSystem: isSystem
     };
     
-    if (!chatHistory.some(m => m.msgId === fullMsgObject.msgId)) {
-        chatHistory.push(fullMsgObject);
+    if (!workspaceState.chatHistory.some(m => m.msgId === fullMsgObject.msgId)) {
+        workspaceState.chatHistory.push(fullMsgObject);
     }
     
     if (fullMsgObject.pmInfo) { // PMs are not threaded and displayed in a flat list in a separate view/context
         displaySystemMessage(`Private message with ${fullMsgObject.pmInfo.recipient || fullMsgObject.pmInfo.sender} not displayed in channel.`);
-    } else if (fullMsgObject.channelId === currentActiveChannelId) {
+    } else if (fullMsgObject.channelId === workspaceState.currentActiveChannelId) {
         displayChatForCurrentChannel();
     }
 }
@@ -760,7 +820,7 @@ function handleSendMessage() {
             displaySystemMessage(`User "${targetNickname}" not found or PM failed.`);
         }
     } else { 
-        if (!currentActiveChannelId) {
+        if (!workspaceState.currentActiveChannelId) {
             displaySystemMessage("Please select a channel to send a message.");
             return;
         }
@@ -768,7 +828,7 @@ function handleSendMessage() {
             message: messageText, 
             timestamp, 
             msgId,
-            channelId: currentActiveChannelId,
+            channelId: workspaceState.currentActiveChannelId,
             parentId: currentReplyParentId // Add parentId if it exists
         };
         sendChatMessageDep(msgData);
@@ -802,7 +862,7 @@ async function handleChatFileSelected(event) {
         fileMeta: { ...fileMeta, receiving: true, blobUrl: URL.createObjectURL(file) },
         timestamp: Date.now(),
         msgId: msgId,
-        channelId: currentActiveChannelId,
+        channelId: workspaceState.currentActiveChannelId,
         parentId: currentReplyParentId
     };
 
@@ -812,7 +872,7 @@ async function handleChatFileSelected(event) {
     sendFileMetaDep({
         ...fileMeta,
         msgId: msgId,
-        channelId: currentActiveChannelId,
+        channelId: workspaceState.currentActiveChannelId,
         parentId: currentReplyParentId
     });
 
@@ -841,7 +901,7 @@ async function handleChatFileSelected(event) {
             readNextChunk();
         } else {
             if(logStatusDep) logStatusDep(`File ${file.name} sent.`);
-            const localMsgEntry = chatHistory.find(m => m.msgId === msgId);
+            const localMsgEntry = workspaceState.chatHistory.find(m => m.msgId === msgId);
             if (localMsgEntry && localMsgEntry.fileMeta) {
                 delete localMsgEntry.fileMeta.receiving; 
                 if (progressElem) progressElem.textContent = ` (Sent 100%)`;
@@ -868,11 +928,11 @@ export function handleChatMessage(msgData, peerId) {
     const senderNickname = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : `Peer ${peerId.substring(0, 6)}`;
     const fullMsgObject = { ...msgData, senderNickname, senderPeerId: peerId, timestamp: msgData.timestamp || Date.now() };
     
-    if (!chatHistory.some(m => m.msgId === fullMsgObject.msgId)) {
-        chatHistory.push(fullMsgObject);
+    if (!workspaceState.chatHistory.some(m => m.msgId === fullMsgObject.msgId)) {
+        workspaceState.chatHistory.push(fullMsgObject);
     }
      
-    if (fullMsgObject.channelId === currentActiveChannelId) {
+    if (fullMsgObject.channelId === workspaceState.currentActiveChannelId) {
         displayChatForCurrentChannel(); // Re-render to place the new message correctly in its thread
     } else if (fullMsgObject.channelId && channelListDiv) {
         const channelDot = channelListDiv.querySelector(`.channel-list-item[data-channel-id="${fullMsgObject.channelId}"] .channel-notification-dot`);
@@ -886,7 +946,7 @@ export function handlePrivateMessage(pmData, senderPeerId) {
     const sender = (getPeerNicknamesDep && getPeerNicknamesDep()[senderPeerId]) ? getPeerNicknamesDep()[senderPeerId] : `Peer ${senderPeerId.substring(0, 6)}`;
     // PMs are not part of threaded channels, just log them as a system message for now.
     displaySystemMessage(`Received PM from ${sender}: ${pmData.content}`);
-    if (peerId !== localGeneratedPeerIdDep && showNotificationDep) showNotificationDep('chatSection'); 
+    if (senderPeerId !== localGeneratedPeerIdDep && showNotificationDep) showNotificationDep('chatSection'); 
 }
 export function handleFileMeta(meta, peerId) {
     const senderNickname = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : `Peer ${peerId.substring(0, 6)}`;
@@ -903,11 +963,11 @@ export function handleFileMeta(meta, peerId) {
         parentId: meta.parentId
     };
 
-    if (!chatHistory.some(m => m.msgId === msgData.msgId)) {
-        chatHistory.push(msgData);
+    if (!workspaceState.chatHistory.some(m => m.msgId === msgData.msgId)) {
+        workspaceState.chatHistory.push(msgData);
     }
 
-    if (msgData.channelId === currentActiveChannelId) {
+    if (msgData.channelId === workspaceState.currentActiveChannelId) {
         displayChatForCurrentChannel();
     }
 
@@ -934,7 +994,7 @@ export function handleFileChunk(chunk, peerId, chunkMeta) {
             const completeFile = new Blob(fileBuffer.chunks, { type: fileBuffer.meta.type });
             const blobUrl = URL.createObjectURL(completeFile);
 
-            const msgToUpdate = chatHistory.find(msg => 
+            const msgToUpdate = workspaceState.chatHistory.find(msg => 
                 msg.msgId === fileBuffer.meta.msgId
             );
             if (msgToUpdate && msgToUpdate.fileMeta) {
@@ -942,7 +1002,7 @@ export function handleFileChunk(chunk, peerId, chunkMeta) {
                 delete msgToUpdate.fileMeta.receiving;
             }
 
-            if (chatArea && msgToUpdate.channelId === currentActiveChannelId) {
+            if (chatArea && msgToUpdate.channelId === workspaceState.currentActiveChannelId) {
                 displayChatForCurrentChannel();
             }
             if(logStatusDep) logStatusDep(`File ${fileBuffer.meta.name} from ${senderNickname} received.`);
@@ -954,8 +1014,8 @@ export function handleFileChunk(chunk, peerId, chunkMeta) {
 }
 export function handleChatHistory(history, peerId) {
     if (getIsHostDep && !getIsHostDep()) {
-        chatHistory = history;
-        chatHistory.forEach(msg => {
+        workspaceState.chatHistory.splice(0, workspaceState.chatHistory.length, ...history);
+        workspaceState.chatHistory.forEach(msg => {
             if (!msg.msgId) { // Backwards compatibility for old chat histories
                 msg.msgId = `msg-${msg.timestamp || Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
             }
@@ -963,7 +1023,7 @@ export function handleChatHistory(history, peerId) {
                 msg.isSystem = true;
             }
         });
-        if (currentActiveChannelId) {
+        if (workspaceState.currentActiveChannelId) {
             displayChatForCurrentChannel();
         }
         if(logStatusDep) logStatusDep(`Received chat history from ${(getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : 'host'}.`);
@@ -971,7 +1031,7 @@ export function handleChatHistory(history, peerId) {
 }
 export function updateChatMessageInputPlaceholder() {
     if(messageInput) {
-        const activeChannel = channels.find(c => c.id === currentActiveChannelId);
+        const activeChannel = workspaceState.channels.find(c => c.id === workspaceState.currentActiveChannelId);
         messageInput.placeholder = `Message ${activeChannel?.name || (currentRoomIdDep || 'current channel')}`;
     }
 }
@@ -983,14 +1043,14 @@ export function primePrivateMessage(nickname) {
 }
 
 export function handleCreateChannel(newChannelData, peerId) {
-    if (!channels.find(ch => ch.id === newChannelData.id)) {
-        channels.push(newChannelData);
+    if (!workspaceState.channels.find(ch => ch.id === newChannelData.id)) {
+        workspaceState.channels.push(newChannelData);
         renderChannelList();
         if (peerId !== localGeneratedPeerIdDep && logStatusDep) {
             const senderName = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : 'another user';
             logStatusDep(`Channel "${newChannelData.name}" created by ${senderName}.`);
         }
-        if (!currentActiveChannelId && channels.length === 1) {
+        if (!workspaceState.currentActiveChannelId && workspaceState.channels.length === 1) {
             setActiveChannel(newChannelData.id, false);
         }
     }
@@ -998,19 +1058,19 @@ export function handleCreateChannel(newChannelData, peerId) {
 
 export function handleInitialChannels(receivedChannels, peerId) {
     if (getIsHostDep && !getIsHostDep()) {
-        channels = receivedChannels || [];
+        workspaceState.channels.splice(0, workspaceState.channels.length, ...(receivedChannels || []));
         
-        const generalChannelExists = channels.some(ch => ch.name === "#general");
+        const generalChannelExists = workspaceState.channels.some(ch => ch.name === "#general");
         if (!generalChannelExists) {
-             _createAndBroadcastChannel("#general", channels.length === 0);
+             _createAndBroadcastChannel("#general", workspaceState.channels.length === 0);
         }
 
-        if (channels.length > 0 && (!currentActiveChannelId || !channels.find(c => c.id === currentActiveChannelId))) {
-            currentActiveChannelId = channels[0].id;
+        if (workspaceState.channels.length > 0 && (!workspaceState.currentActiveChannelId || !workspaceState.channels.find(c => c.id === workspaceState.currentActiveChannelId))) {
+            workspaceState.currentActiveChannelId = workspaceState.channels[0].id;
         }
         
         renderChannelList();
-        if (chatHistory.length > 0) {
+        if (workspaceState.chatHistory.length > 0) {
              displayChatForCurrentChannel();
         }
         if(logStatusDep) logStatusDep(`Received channel list from ${(getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : 'host'}.`);
@@ -1021,9 +1081,9 @@ export function getShareableData() {
     if (documentModuleRef) documentModuleRef.getDocumentShareData();
 
     return { 
-        chatHistory, 
-        channels, 
-        currentActiveChannelIdForImport: currentActiveChannelId,
+        chatHistory: workspaceState.chatHistory, 
+        channels: workspaceState.channels, 
+        currentActiveChannelIdForImport: workspaceState.currentActiveChannelId,
         whiteboardHistory: whiteboardModuleRef ? whiteboardModuleRef.getWhiteboardHistory() : [], 
         kanbanData: kanbanModuleRef ? kanbanModuleRef.getKanbanData() : { columns: [] }, 
         documents: documentModuleRef ? documentModuleRef.getDocumentShareData().docs : [], 
@@ -1031,8 +1091,8 @@ export function getShareableData() {
     };
 }
 export function loadShareableData(data) { 
-    chatHistory = data.chatHistory || [];
-    chatHistory.forEach(msg => {
+    workspaceState.chatHistory.splice(0, workspaceState.chatHistory.length, ...(data.chatHistory || []));
+    workspaceState.chatHistory.forEach(msg => {
         if (!msg.msgId) {
             msg.msgId = `msg-${msg.timestamp || Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         }
@@ -1041,8 +1101,8 @@ export function loadShareableData(data) {
         }
     });
 
-    channels = data.channels || [];
-    currentActiveChannelId = data.currentActiveChannelIdForImport || (channels.length > 0 ? channels[0].id : null);
+    workspaceState.channels.splice(0, workspaceState.channels.length, ...(data.channels || []));
+    workspaceState.currentActiveChannelId = data.currentActiveChannelIdForImport || (workspaceState.channels.length > 0 ? workspaceState.channels[0].id : null);
 
     if (whiteboardModuleRef) whiteboardModuleRef.loadWhiteboardData(data.whiteboardHistory || []);
     if (kanbanModuleRef) kanbanModuleRef.loadKanbanData(data.kanbanData || { columns: [] });
@@ -1053,8 +1113,8 @@ export function loadShareableData(data) {
    
 }
 function loadChatHistoryFromImport(importedHistory) { 
-    chatHistory = importedHistory; 
-    chatHistory.forEach(msg => {
+    workspaceState.chatHistory.push(...(importedHistory || [])); 
+    workspaceState.chatHistory.forEach(msg => {
         if (!msg.msgId) {
             msg.msgId = `msg-${msg.timestamp || Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
         }
@@ -1068,8 +1128,8 @@ function loadChatHistoryFromImport(importedHistory) {
 export function sendFullStateToPeer(peerId) {
     if (getIsHostDep && getIsHostDep()) {
       
-        if (sendInitialChannelsDep) sendInitialChannelsDep(channels, peerId);
-        if (sendChatHistoryDep && chatHistory.length > 0) sendChatHistoryDep(chatHistory, peerId);
+        if (sendInitialChannelsDep) sendInitialChannelsDep(workspaceState.channels, peerId);
+        if (sendChatHistoryDep && workspaceState.chatHistory.length > 0) sendChatHistoryDep(workspaceState.chatHistory, peerId);
         if (whiteboardModuleRef) whiteboardModuleRef.sendInitialWhiteboardStateToPeer(peerId, getIsHostDep);
         if (kanbanModuleRef) kanbanModuleRef.sendInitialKanbanStateToPeer(peerId, getIsHostDep);
         if (documentModuleRef) documentModuleRef.sendInitialDocumentsStateToPeer(peerId, getIsHostDep);
@@ -1081,20 +1141,22 @@ export function displaySystemMessage(message) {
         message, 
         timestamp: Date.now(), 
         isSystem: true,
-        channelId: currentActiveChannelId, // Show system message in the current channel
+        channelId: workspaceState.currentActiveChannelId, // Show system message in the current channel
         msgId: `msg-sys-${Date.now()}`
     };
     addMessageToHistoryAndDisplay(msgData, false, true);
 }
 
 export function resetShareModuleStates(isCreatingHost = false) {
-    chatHistory = [];
+    if (workspaceState) {
+        workspaceState.chatHistory.length = 0;
+        workspaceState.channels.length = 0;
+        workspaceState.currentActiveChannelId = null;
+    }
     if (chatArea) chatArea.innerHTML = '';
     if (messageInput) messageInput.value = '';
     incomingFileBuffers.clear();
 
-    channels = [];
-    currentActiveChannelId = null;
     cancelReply(); // NEW: Reset reply state
     if(channelListDiv) channelListDiv.innerHTML = '';
     if(newChannelNameInput) newChannelNameInput.value = '';

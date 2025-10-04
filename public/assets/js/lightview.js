@@ -95,6 +95,73 @@ const dateMutatingMethods = [
             }
         }
         
+        // Add onChange method to the proxy
+        Object.defineProperty(proxy, 'onChange', {
+            value: (handler, paths, options = {}) => {
+                const { autoCreate = true } = options;
+                
+                // Ensure paths exist if autoCreate is true (skip for "*")
+                if (autoCreate) {
+                    for (const path of paths) {
+                        if (path === '*') continue; // Skip "*" as it watches everything
+                        const parts = path.split('.');
+                        let current = proxy;
+                        for (let i = 0; i < parts.length - 1; i++) {
+                            const part = parts[i];
+                            if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
+                                current[part] = {};
+                            }
+                            current = current[part];
+                        }
+                    }
+                }
+                
+                // Helper to recursively access all properties for "*" watching
+                const accessAll = (obj) => {
+                    if (typeof obj === 'object' && obj !== null) {
+                        for (const key in obj) {
+                            if (!key.startsWith('__') && typeof obj[key] !== 'function') {
+                                accessAll(obj[key]);
+                            }
+                        }
+                    }
+                };
+                
+                // Create an effect that tracks the specified paths and calls the handler on changes
+                const effect = createEffect(() => {
+                    const hasWildcard = paths.includes('*');
+                    
+                    if (hasWildcard) {
+                        // Access all properties recursively to watch for any changes
+                        accessAll(proxy);
+                    } else {
+                        // Access each specific path to establish tracking
+                        for (const path of paths) {
+                            const parts = path.split('.');
+                            let current = proxy;
+                            for (const part of parts) {
+                                if (current && typeof current === 'object') {
+                                    current = current[part];
+                                } else {
+                                    current = undefined;
+                                    break;
+                                }
+                            }
+                            // Access is sufficient for tracking; no further action needed
+                        }
+                    }
+                    
+                    // Call the handler function
+                    handler();
+                });
+                
+                // Run the effect once to set up initial tracking
+                effect();
+            },
+            enumerable: false,
+            configurable: true
+        });
+        
         return proxy;
     }
 

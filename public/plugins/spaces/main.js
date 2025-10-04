@@ -13,11 +13,23 @@ import { initMediaFeatures, handleMediaPeerStream, stopAllLocalMedia, setupMedia
 
 const APP_ID = 'Spaces-0.1.5-jun21';
 
+function saveSpaceToLocalStorage() {
+    if (!window.currentRoomId) return;
+    console.log('Saving space to localStorage for room:', window.currentRoomId);
+    try {
+        const shareData = getShareableData();
+        const workspaceState = { ...shareData, roomId: window.currentRoomId, version: APP_ID };
+        localStorage.setItem('space_' + window.currentRoomId, JSON.stringify(workspaceState));
+        console.log('Space saved successfully.');
+    } catch (e) {
+        console.error('Error saving space to localStorage:', e);
+    }
+}
+
 // Expose functions and variables on window for index.js
 window.isHost = false;
 window.currentRoomId = '';
 window.localNickname = '';
-window.joinRoomAndSetup = joinRoomAndSetup;
 window.logStatus = logStatus;
 window.cycleTheme = cycleTheme;
 window.handlePttKeyCapture = handlePttKeyCapture;
@@ -481,21 +493,42 @@ async function deriveKeyFromPassword_ImportExport(password, salt) {
     return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: 750000, hash: "SHA-256" }, keyMaterial, { name: CRYPTO_ALGO, length: 256 }, true, ["encrypt", "decrypt"]);
 }
 
-async function joinRoomAndSetup() {
+export async function joinRoomAndSetup() {
     window.localNickname = nicknameInput.value.trim();
+    let roomIdToJoin = roomIdInput.value.trim();
+
+    // NEW: If the room ID looks like an email, assume it's a personal space and force host mode.
+    // This corrects the state if the calling context (e.g., selectFolder) doesn't set window.isHost.
+    const isEmailRoom = roomIdToJoin && roomIdToJoin.includes('@') && roomIdToJoin.includes('.');
+    if (isEmailRoom) {
+        window.isHost = true;
+        console.log(`Detected email-based room ID ('${roomIdToJoin}'). Forcing host mode.`);
+    }
+
+    // NEW: If host and no nickname is set, default it to the room ID (the account email).
+    if (window.isHost && !window.localNickname && roomIdToJoin) {
+        window.localNickname = roomIdToJoin;
+    }
+
     if (!window.localNickname) { logStatus("Please enter a nickname.", true); return; }
     localStorage.setItem('viewPartyNickname', window.localNickname);
     populateSettingsSection();
     const roomPasswordProvided = window.isHost ? roomPasswordInput.value : joinPasswordInput.value;
-    if (!roomPasswordProvided) {
+    
+    const requiresPassword = !window.isHost;
+    
+    if (requiresPassword && !roomPasswordProvided) {
         logStatus("Workspace password is required.", true);
         if(createPartyBtn) createPartyBtn.disabled = false; if(joinWorkspaceBtn) joinWorkspaceBtn.disabled = false;
         return;
     }
-    let roomIdToJoin = roomIdInput.value.trim();
+    
+    const effectivePassword = roomPasswordProvided || (window.isHost ? 'host-personal-default' : '');
+    
     if (window.isHost) {
         if (!roomIdToJoin) roomIdToJoin = (importedWorkspaceState && importedWorkspaceState.roomId) ? importedWorkspaceState.roomId : generateMemorableRoomCode();
         if(roomIdInput) roomIdInput.value = roomIdToJoin;
+        // The logic to default nickname was moved up to handle the case where it's empty.
     } else if (!roomIdToJoin) {
         logStatus("Room Code is required to join a workspace.", true);
         if(createPartyBtn) createPartyBtn.disabled = false; if(joinWorkspaceBtn) joinWorkspaceBtn.disabled = false;
@@ -510,9 +543,14 @@ async function joinRoomAndSetup() {
     logStatus(`Connecting to workspace: ${window.currentRoomId}...`);
     [createPartyBtn, joinWorkspaceBtn, importWorkspaceBtn, nicknameInput, roomIdInput, roomPasswordInput, joinPasswordInput, confirmCreateBtn, confirmJoinBtn].forEach(el => el && (el.disabled = true));
     try {
-        const config = { appId: APP_ID, password: roomPasswordProvided };
+        const config = { appId: APP_ID, password: effectivePassword };
         roomApi = await joinRoom(config, window.currentRoomId);
         logStatus("Setting up workspace features...");
+        // Load saved space data
+        const savedSpace = localStorage.getItem('space_' + window.currentRoomId);
+        if (savedSpace) {
+            importedWorkspaceState = JSON.parse(savedSpace);
+        }
         [sendChatMessage, onChatMessage] = roomApi.makeAction('chatMsg');
         [sendNickname, onNickname] = roomApi.makeAction('nick');
         [sendPrivateMessage, onPrivateMessage] = roomApi.makeAction('privMsg');
@@ -541,6 +579,7 @@ async function joinRoomAndSetup() {
             getPeerNicknames: () => peerNicknames, getIsHost: () => window.isHost, getLocalNickname: () => window.localNickname,
             findPeerIdByNicknameFnc: findPeerIdByNickname, getImportedWorkspaceState: () => importedWorkspaceState,
             clearImportedWorkspaceState: () => { importedWorkspaceState = null; }, currentRoomId: window.currentRoomId,
+            saveSpaceToLocalStorage,
         };
         window.shareModuleRef = initShareFeatures(shareModuleDeps);
         const mediaModuleDeps = {
@@ -551,21 +590,41 @@ async function joinRoomAndSetup() {
             initialGlobalVolume: spacesSettings.globalVolume, updateUserList: updateUserList,
         };
         window.mediaModuleRef = initMediaFeatures(mediaModuleDeps);
-        onChatMessage((data, peerId) => window.shareModuleRef.handleChatMessage(data, peerId));
-        onPrivateMessage((data, peerId) => window.shareModuleRef.handlePrivateMessage(data, peerId));
-        onFileMeta((data, peerId) => window.shareModuleRef.handleFileMeta(data, peerId));
+        onChatMessage((data, peerId) => {
+            window.shareModuleRef.handleChatMessage(data, peerId);
+        });
+        onPrivateMessage((data, peerId) => {
+            window.shareModuleRef.handlePrivateMessage(data, peerId);
+        });
+        onFileMeta((data, peerId) => {
+            window.shareModuleRef.handleFileMeta(data, peerId);
+        });
         onFileChunk((data, peerId, chunkMeta) => window.shareModuleRef.handleFileChunk(data, peerId, chunkMeta));
-        onDrawCommand((data, peerId) => window.shareModuleRef.handleDrawCommand(data, peerId));
+        onDrawCommand((data, peerId) => {
+            window.shareModuleRef.handleDrawCommand(data, peerId);
+        });
         onInitialWhiteboard((data, peerId) => window.shareModuleRef.handleInitialWhiteboard(data, peerId));
-        onKanbanUpdate((data, peerId) => window.shareModuleRef.handleKanbanUpdate(data, peerId));
+        onKanbanUpdate((data, peerId) => {
+            window.shareModuleRef.handleKanbanUpdate(data, peerId);
+        });
         onInitialKanban((data, peerId) => window.shareModuleRef.handleInitialKanban(data, peerId));
         onChatHistory((data, peerId) => window.shareModuleRef.handleChatHistory(data, peerId));
         onInitialDocuments((data, peerId) => window.shareModuleRef.handleInitialDocuments(data, peerId));
-        onCreateDocument((data, peerId) => window.shareModuleRef.handleCreateDocument(data, peerId));
-        onRenameDocument((data, peerId) => window.shareModuleRef.handleRenameDocument(data, peerId));
-        onDeleteDocument((data, peerId) => window.shareModuleRef.handleDeleteDocument(data, peerId));
-        onDocumentContentUpdate((data, peerId) => window.shareModuleRef.handleDocumentContentUpdate(data, peerId));
-        onCreateChannel((data, peerId) => window.shareModuleRef.handleCreateChannel(data, peerId));
+        onCreateDocument((data, peerId) => {
+            window.shareModuleRef.handleCreateDocument(data, peerId);
+        });
+        onRenameDocument((data, peerId) => {
+            window.shareModuleRef.handleRenameDocument(data, peerId);
+        });
+        onDeleteDocument((data, peerId) => {
+            window.shareModuleRef.handleDeleteDocument(data, peerId);
+        });
+        onDocumentContentUpdate((data, peerId) => {
+            window.shareModuleRef.handleDocumentContentUpdate(data, peerId);
+        });
+        onCreateChannel((data, peerId) => {
+            window.shareModuleRef.handleCreateChannel(data, peerId);
+        });
         onInitialChannels((data, peerId) => window.shareModuleRef.handleInitialChannels(data, peerId));
         onNickname(async (nicknameData, peerId) => {
             const { nickname, initialJoin, isHost: peerIsHost } = nicknameData;
@@ -656,6 +715,9 @@ function resetToSetupState() {
     peerNicknames={};window.isHost=false;window.currentRoomId='';importedWorkspaceState=null;
 }
 
+// Expose the function globally for use in other scripts
+window.joinRoomAndSetup = joinRoomAndSetup;
+
 async function initializeApp() {
     window.localNickname = localStorage.getItem('viewPartyNickname') || '';
     if (nicknameInput) {
@@ -668,17 +730,17 @@ async function initializeApp() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) console.warn("Video/Audio capture not supported by your browser.");
     await loadSettings();
     resetToSetupState();
-    console.log('Spaces: Enter username and choose an action: Create, Join, or Import a workspace.');
-    if (setupSection && !setupSection.classList.contains('hidden')) {
-        const existingMessage = setupSection.querySelector('p.initial-setup-message');
-        if (existingMessage) existingMessage.remove();
-        const initialSetupMessage = document.createElement('p');
-        initialSetupMessage.className = 'initial-setup-message';
-        initialSetupMessage.textContent = 'Enter username and choose an action: Create, Join, or Import a workspace.';
-        initialSetupMessage.style.textAlign = 'center';
-        initialSetupMessage.style.marginTop = 'var(--space-md)';
-        initialSetupMessage.style.color = 'var(--text-secondary, #666)';
-        setupSection.appendChild(initialSetupMessage);
-    }
+    
+    // On initial load, override resetToSetupState to show the intro page.
+    if (setupSection) setupSection.classList.add('hidden');
+    if (inRoomInterface) inRoomInterface.classList.remove('hidden');
+
+    // Hide the default chat section shown by resetToSetupState and show the intro section.
+    const chatSection = document.getElementById('chatSection');
+    const introSection = document.getElementById('introSection');
+    if (chatSection) chatSection.classList.add('hidden');
+    if (introSection) introSection.classList.remove('hidden');
+    
+    console.log('Spaces: Welcome! Select an action from the sidebar to get started.');
 }
 initializeApp();
