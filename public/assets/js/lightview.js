@@ -68,7 +68,7 @@ const dateMutatingMethods = [
 ];
 
     // Helper to recursively create proxies for nested objects
-    function recursiveState(obj, publishFn = null) {
+    function recursiveState(obj, publishFn = null, path = [], root = null) {
         if (typeof obj !== 'object' || obj === null) return obj;
         if (obj._id && proxyIdCache.has(obj._id)) return proxyIdCache.get(obj._id);
         
@@ -85,13 +85,27 @@ const dateMutatingMethods = [
             Object.defineProperty(obj, '__publish', { value: publishFn, enumerable: false, configurable: true });
         }
         
+        // Set path and root
+        Object.defineProperty(obj, '__path', { value: path, enumerable: false, configurable: true });
+        const isRoot = root === null;
+        if (isRoot) {
+            root = obj; // Will be set to proxy later
+        }
+        Object.defineProperty(obj, '__root', { value: root, enumerable: false, configurable: true });
+        
+        // Add onChange handlers list
+        Object.defineProperty(obj, '__onChangeHandlers', { value: [], enumerable: false, configurable: true });
+        
         const proxy = new Proxy(obj, stateHandler);
+        if (isRoot) {
+            obj.__root = proxy;
+        }
         proxyIdCache.set(obj._id, proxy);
         
         // Recursively proxy nested objects
         for (const key in obj) {
             if (obj.hasOwnProperty(key) && typeof obj[key] === 'object' && obj[key] !== null && !key.startsWith('__') && typeof obj[key] !== 'function') {
-                obj[key] = recursiveState(obj[key], publishFn);
+                obj[key] = recursiveState(obj[key], publishFn, [...path, key], root);
             }
         }
         
@@ -127,7 +141,10 @@ const dateMutatingMethods = [
                     }
                 };
                 
-                // Create an effect that tracks the specified paths and calls the handler on changes
+                // Store the handler
+                obj.__onChangeHandlers.push({handler, paths, options});
+                
+                // Create an effect that tracks the specified paths
                 const effect = createEffect(() => {
                     const hasWildcard = paths.includes('*');
                     
@@ -150,9 +167,6 @@ const dateMutatingMethods = [
                             // Access is sufficient for tracking; no further action needed
                         }
                     }
-                    
-                    // Call the handler function
-                    handler();
                 });
                 
                 // Run the effect once to set up initial tracking
@@ -189,7 +203,7 @@ const dateMutatingMethods = [
                 if (!nestedProxy) {
                     // For non-Date objects, create proxy
                     if (!(value instanceof Date)) {
-                      nestedProxy = recursiveState(value, target.__publish);
+                      nestedProxy = recursiveState(value, target.__publish, [...target.__path, property], target.__root);
                     } else {
                       // For Date objects, return as-is (already handled in recursiveState)
                       nestedProxy = value;
@@ -209,12 +223,30 @@ const dateMutatingMethods = [
             // Proxy new object values recursively
             let setValue = value;
             if (typeof value === 'object' && value !== null) {
-                setValue = recursiveState(value, target.__publish);
+                setValue = recursiveState(value, target.__publish, [...target.__path, property], target.__root);
             }
             
             const result = Reflect.set(target, property, setValue, receiver);
             const type = typeof value;
             if (property.startsWith("__") || ["function", "symbol"].includes(type)) return result; // Skip internal properties
+            
+            // Compute changed path
+            const changedPath = [...target.__path, property].join('.');
+            
+            // Call onChange handlers
+            for (const h of target.__onChangeHandlers) {
+                const matches = h.paths.includes('*') || h.paths.some(p => changedPath === p || changedPath.startsWith(p + '.'));
+                if (matches) {
+                    h.handler({
+                        root: target.__root,
+                        path: changedPath,
+                        object: target,
+                        property,
+                        oldValue,
+                        newValue: value
+                    });
+                }
+            }
             
             // If the set value is a Date, wrap its mutating methods to trigger reactivity
             if (setValue instanceof Date) {
@@ -224,6 +256,20 @@ const dateMutatingMethods = [
                 setValue[method] = function(...args) {
                   const result = original.apply(this, args);
                   if (deps) trigger(deps);
+                  // Also call onChange handlers for Date mutations
+                  for (const h of target.__onChangeHandlers) {
+                      const matches = h.paths.includes('*') || h.paths.some(p => changedPath === p || changedPath.startsWith(p + '.'));
+                      if (matches) {
+                          h.handler({
+                              root: target.__root,
+                              path: changedPath,
+                              object: target,
+                              property,
+                              oldValue: setValue, // For Date, oldValue is the Date itself
+                              newValue: setValue
+                          });
+                      }
+                  }
                   return result;
                 };
               }
@@ -242,6 +288,25 @@ const dateMutatingMethods = [
         deleteProperty(target, property) {
             const oldValue = Reflect.get(target, property);
             const result = Reflect.deleteProperty(target, property);
+            
+            // Compute changed path
+            const changedPath = [...target.__path, property].join('.');
+            
+            // Call onChange handlers
+            for (const h of target.__onChangeHandlers) {
+                const matches = h.paths.includes('*') || h.paths.some(p => changedPath === p || changedPath.startsWith(p + '.'));
+                if (matches) {
+                    h.handler({
+                        root: target.__root,
+                        path: changedPath,
+                        object: target,
+                        property,
+                        oldValue,
+                        newValue: undefined
+                    });
+                }
+            }
+            
             if (target.hasOwnProperty('__dependencies') && target.__dependencies.has(property)) {
                 trigger(target.__dependencies.get(property));
             }
@@ -251,7 +316,7 @@ const dateMutatingMethods = [
 
     const state = (initialState, publishFn = null) => {
         if (initialState && typeof initialState === 'object') {
-            return recursiveState(initialState, publishFn);
+            return recursiveState(initialState, publishFn, [], null);
         }
         return new Proxy(initialState, stateHandler);  // For non-objects, still proxy if needed
     };
