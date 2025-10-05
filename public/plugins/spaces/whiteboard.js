@@ -260,6 +260,7 @@ function handleWbMouseMove(e) {
         applyDrawCommand(drawCmdData);
         whiteboardHistory.push(drawCmdData);
         if (sendDrawCommandDep) sendDrawCommandDep(drawCmdData);
+        if (onUpdateDep) onUpdateDep();
     } else if (currentWbTool === 'rectangle' || currentWbTool === 'circle' || currentWbTool === 'line') {
         redrawWhiteboardFromHistory();
         let previewCmd = {};

@@ -1,10 +1,12 @@
+import { debounce, escapeHtml } from './utils.js';
+
 let documents = [];
 let currentActiveDocumentId = null;
 
 let sendInitialDocumentsDep, sendCreateDocumentDep, sendRenameDocumentDep;
 let sendDeleteDocumentDep, sendDocumentContentUpdateDep;
 let logStatusDep, showNotificationDep;
-let getPeerNicknamesDep, localGeneratedPeerIdDep, getIsHostDep;
+let getPeerNicknamesDep, localGeneratedPeerIdDep, getIsHostDep, onUpdateDep;
 
 let documentsSection, documentListDiv, newDocBtn, renameDocBtn, deleteDocBtn, collaborativeEditor;
 let docBoldBtn, docItalicBtn, docUnderlineBtn, docUlBtn, docOlBtn, downloadTxtBtn, printDocBtn;
@@ -26,31 +28,21 @@ function selectDocumentDomElements() {
     printDocBtn = document.getElementById('printDocBtn');
 }
 
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-function debounce(func, delay) {
-    let timeout;
-    return function (...args) {
-        const context = this;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), delay);
-    };
-}
-
 const debouncedSendActiveDocumentContentUpdate = debounce(() => {
-    if (sendDocumentContentUpdateDep && currentActiveDocumentId && collaborativeEditor) {
+    if (currentActiveDocumentId && collaborativeEditor) {
         const activeDoc = documents.find(d => d.id === currentActiveDocumentId);
         if (activeDoc && collaborativeEditor.innerHTML !== activeDoc.htmlContent) {
+            // First, update the local state
             activeDoc.htmlContent = collaborativeEditor.innerHTML; 
-            sendDocumentContentUpdateDep({ documentId: currentActiveDocumentId, htmlContent: activeDoc.htmlContent });
-            if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('documentsSection');
+            
+            // Second, trigger the workspace auto-save
+            if (onUpdateDep) onUpdateDep();
+
+            // Third, send the update to peers if they exist
+            if (sendDocumentContentUpdateDep) {
+                sendDocumentContentUpdateDep({ documentId: currentActiveDocumentId, htmlContent: activeDoc.htmlContent });
+                if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('documentsSection');
+            }
         }
     }
 }, 750);
@@ -114,6 +106,7 @@ export function initDocumentFeatures(dependencies) {
     getPeerNicknamesDep = dependencies.getPeerNicknames;
     localGeneratedPeerIdDep = dependencies.localGeneratedPeerId;
     getIsHostDep = dependencies.getIsHost;
+    onUpdateDep = dependencies.onUpdate;
 
     if (!collaborativeEditor || !newDocBtn || !renameDocBtn || !deleteDocBtn || !docBoldBtn || !downloadTxtBtn || !documentListDiv) {
         console.warn("Document DOM elements not found, Document feature might be partially disabled.");
@@ -215,6 +208,7 @@ function setActiveDocument(documentId) {
     }
     currentActiveDocumentId = documentId; 
     loadActiveDocumentContent();
+    if (onUpdateDep) onUpdateDep();
 }
 
 function uiActionCreateNewDocument(defaultName = null, defaultContent = null, broadcast = true) {
@@ -243,6 +237,7 @@ function uiActionRenameDocument() {
     if (newName && newName.trim() && newName !== docToRename.name) {
         docToRename.name = newName.trim(); 
         renderDocumentList();
+        if (onUpdateDep) onUpdateDep();
         if (sendRenameDocumentDep) {
             sendRenameDocumentDep({ documentId: currentActiveDocumentId, newName: docToRename.name });
             if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('documentsSection');
@@ -274,6 +269,7 @@ function uiActionDeleteDocument() {
             renderDocumentList(); 
         }
     }
+    if (onUpdateDep) onUpdateDep();
     if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && deletedDocId && showNotificationDep) showNotificationDep('documentsSection');
 }
 
