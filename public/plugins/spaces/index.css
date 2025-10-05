@@ -252,7 +252,16 @@ input::placeholder, textarea::placeholder { color: var(--text-secondary); opacit
 .file-text-info a:hover { color: var(--accent-hover); } /* Uses theme variable */
 
 
-.channel-list-container { max-height: 200px; overflow-y: auto; margin-bottom: var(--space-md); flex-grow: 1; }
+.channel-list-container {
+    /* Add a subtle top border for better list separation */
+    border-top: 1px solid var(--border-color);
+    /* Existing styles remain */
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: var(--space-md);
+    flex-grow: 1;
+}
+
 /* .card styles apply to channel-list-container */
 .channel-list-item {
   padding: var(--space-sm) var(--space-md); cursor: pointer;
@@ -269,6 +278,10 @@ input::placeholder, textarea::placeholder { color: var(--text-secondary); opacit
 .channel-list-item .channel-notification-dot { /* Style for notification dots on channels */
     width: 6px; height: 6px; background-color: var(--notification-dot-color);
     border-radius: 50%; margin-left: auto;
+    /* Ensure it's always visible and positioned */
+    display: inline-block;
+    margin-left: auto;
+    opacity: 1;  /* Override any inherited opacity */
 }
 .add-channel-controls { display: flex; flex-direction: column; gap: var(--space-sm); margin-top: auto; }
 .add-channel-controls input[type="text"] { margin-bottom: 0; }

@@ -6,7 +6,7 @@ let wbTextInsertionPoint = null;
 
 let sendDrawCommandDep, sendInitialWhiteboardDep;
 let logStatusDep, showNotificationDep;
-let getPeerNicknamesDep, localGeneratedPeerIdDep;
+let getPeerNicknamesDep, localGeneratedPeerIdDep, onUpdateDep;
 
 let whiteboardCanvas, wbColorPicker, wbLineWidth, wbClearBtn, wbLineWidthValue, wbToolPalette;
 let wbExportPngBtn;
@@ -34,6 +34,7 @@ export function initWhiteboardFeatures(dependencies) {
     showNotificationDep = dependencies.showNotification;
     getPeerNicknamesDep = dependencies.getPeerNicknames;
     localGeneratedPeerIdDep = dependencies.localGeneratedPeerId;
+    onUpdateDep = dependencies.onUpdate;
 
     if (!whiteboardCanvas || !wbToolPalette) {
         console.error("CRITICAL Whiteboard DOM elements (canvas or tool palette) not found. Whiteboard disabled.");
@@ -232,6 +233,7 @@ function handleSubmitWbText() {
     whiteboardHistory.push(textCmd);
 
     if (sendDrawCommandDep) sendDrawCommandDep(textCmd);
+    if (onUpdateDep) onUpdateDep();
     if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('whiteboardSection');
 
     wbActualTextInput.value = '';
@@ -298,6 +300,7 @@ function handleWbMouseUp() {
         applyDrawCommand(finalShapeCmd); 
         whiteboardHistory.push(finalShapeCmd);
         if (sendDrawCommandDep) sendDrawCommandDep(finalShapeCmd);
+        if (onUpdateDep) onUpdateDep();
         if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('whiteboardSection');
     }
     wbIsDrawing = false;
@@ -355,6 +358,7 @@ function clearWhiteboardAndBroadcast() {
     applyDrawCommand(clearCmd);
     whiteboardHistory = [clearCmd];
     if (sendDrawCommandDep) sendDrawCommandDep(clearCmd);
+    if (onUpdateDep) onUpdateDep();
     if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('whiteboardSection');
     if(wbTextInputArea) wbTextInputArea.classList.add('hidden');
     wbTextInsertionPoint = null;

@@ -8,7 +8,6 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <link rel="stylesheet" href="../index.css">
 <link rel="stylesheet" href="./index.css">
-<link rel="stylesheet" href="main-styles.css">
 <link id="active-theme-stylesheet" rel="stylesheet" href="themes/light.css">
 <script src="../../assets/js/lightview.js"></script>
 <script>
@@ -16,9 +15,10 @@
     const {render, state, navigate} = lightview;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
-<script src="index.js"></script>
+<script src="./index.js"></script>
 <script src="../folder-item.js"></script>
 <script type="module" id="init">
+    import { debounce } from './utils.js';
     const {user, ui} = await lightview.import("./", { publish: true, subscribe: true });
 
     const getAccountIconClass = (accountEmail) => {
@@ -146,6 +146,18 @@
                     }
                 }
             }
+        }
+    });
+    const debouncedSave = debounce(() => {
+        // Only the host should save the workspace state to localStorage.
+        if (appState.workspace && appState.workspace.isHost && typeof window.saveSpaceToLocalStorage === 'function') {
+            window.saveSpaceToLocalStorage(appState);
+        }
+    }, 1500); // Debounce saves to avoid excessive writes (e.g., during typing).
+
+    appState.onChange('*', ({path,property,newValue}) => {
+        if(path.startsWith('workspace.')) {
+            debouncedSave();
         }
     });
 
@@ -478,6 +490,6 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <iframe id="printFrame" style="display: none;"></iframe>
-<script type="module" src="main.js"></script>
+<script type="module" src="./main.js"></script>
 </body>
 </html>

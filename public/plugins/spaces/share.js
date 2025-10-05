@@ -7,6 +7,7 @@ const MAX_THREAD_DEPTH = 4; // NEW: Max reply depth
 
 let appStateDep; // NEW: To hold the central app state
 
+import { debounce } from './utils.js';
 import {
     initKanbanFeatures,
     getShareableData as getKanbanData,
@@ -74,100 +75,6 @@ const IMAGE_MIME_TYPES = [
 ];
 const MIN_PREVIEW_DIM = 140;
 const MAX_PREVIEW_DIM = 240;
-
-function debounce(func, delay) {
-    let timeout;
-    return function (...args) {
-        const context = this;
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(context, args), delay);
-    };
-}
-
-async function generateImagePreview(file) {
-    return new Promise((resolve) => {
-        if (!IMAGE_MIME_TYPES.includes(file.type)) {
-            resolve(null);
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                let newWidth, newHeight;
-                const originalWidth = img.width;
-                const originalHeight = img.height;
-                const aspectRatio = originalWidth / originalHeight;
-
-                if (originalWidth >= originalHeight) {
-                    newWidth = Math.min(MAX_PREVIEW_DIM, Math.max(MIN_PREVIEW_DIM, originalWidth));
-                    newHeight = newWidth / aspectRatio;
-
-                    if (newHeight < MIN_PREVIEW_DIM && originalHeight >= MIN_PREVIEW_DIM) {
-                        newHeight = MIN_PREVIEW_DIM;
-                        newWidth = newHeight * aspectRatio;
-                    } else if (newHeight > MAX_PREVIEW_DIM) {
-                        newHeight = MAX_PREVIEW_DIM;
-                        newWidth = newHeight * aspectRatio;
-                    }
-                } else {
-                    newHeight = Math.min(MAX_PREVIEW_DIM, Math.max(MIN_PREVIEW_DIM, originalHeight));
-                    newWidth = newHeight * aspectRatio;
-
-                    if (newWidth < MIN_PREVIEW_DIM && originalWidth >= MIN_PREVIEW_DIM) {
-                        newWidth = MIN_PREVIEW_DIM;
-                        newHeight = newWidth / aspectRatio;
-                    } else if (newWidth > MAX_PREVIEW_DIM) {
-                        newWidth = MAX_PREVIEW_DIM;
-                        newHeight = newWidth / aspectRatio;
-                    }
-                }
-
-                if (newWidth > MAX_PREVIEW_DIM) {
-                    newWidth = MAX_PREVIEW_DIM;
-                    newHeight = newWidth / aspectRatio;
-                }
-                if (newHeight > MAX_PREVIEW_DIM) {
-                    newHeight = MAX_PREVIEW_DIM;
-                    newWidth = newHeight * aspectRatio;
-                }
-                                                
-                newWidth = Math.max(1, Math.round(Math.min(MAX_PREVIEW_DIM, newWidth)));
-                newHeight = Math.max(1, Math.round(Math.min(MAX_PREVIEW_DIM, newHeight)));
-
-
-                canvas.width = newWidth;
-                canvas.height = newHeight;
-                ctx.drawImage(img, 0, 0, newWidth, newHeight);
-
-                let previewDataURL;
-                if (file.type === 'image/gif') {
-                    previewDataURL = canvas.toDataURL('image/png');
-                } else if (file.type === 'image/png' || file.type === 'image/svg+xml') {
-                     previewDataURL = canvas.toDataURL('image/png');
-                } else {
-                     previewDataURL = canvas.toDataURL('image/jpeg', 0.90);
-                }
-                resolve(previewDataURL);
-            };
-            img.onerror = () => {
-                console.warn("Failed to load image for preview generation:", file.name);
-                resolve(null);
-            };
-            img.src = e.target.result;
-        };
-        reader.onerror = () => {
-            console.warn("Failed to read file for preview generation:", file.name);
-            resolve(null);
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
 
 function selectChatDomElements() {
     chatArea = document.getElementById('chatArea');
@@ -248,17 +155,35 @@ export function initShareFeatures(dependencies) {
         getIsHost: getIsHostDep,
     };
 
+    const onKanbanUpdate = () => {
+        if (kanbanModuleRef) appStateDep.kanbanData = kanbanModuleRef.getShareableData();
+    };
+
     kanbanModuleRef = initKanbanFeatures({
         ...commonSubModuleDeps,
         sendKanbanUpdate: sendKanbanUpdateDep,
         sendInitialKanban: sendInitialKanbanDep,
+        onUpdate: onKanbanUpdate
             });
+
+    const onWhiteboardUpdate = () => {
+        if (whiteboardModuleRef) appStateDep.whiteboardHistory = whiteboardModuleRef.getShareableData();
+    };
 
     whiteboardModuleRef = initWhiteboardFeatures({
         ...commonSubModuleDeps,
         sendDrawCommand: sendDrawCommandDep,
         sendInitialWhiteboard: sendInitialWhiteboardDep,
+        onUpdate: onWhiteboardUpdate
     });
+
+    const onDocumentUpdate = () => {
+        if (documentModuleRef) {
+            const docData = documentModuleRef.getShareableData();
+            appStateDep.documents = docData.documents;
+            appStateDep.currentActiveDocumentId = docData.currentActiveDocumentId;
+        }
+    };
 
     documentModuleRef = initDocumentFeatures({
         ...commonSubModuleDeps,
@@ -267,6 +192,7 @@ export function initShareFeatures(dependencies) {
         sendRenameDocument: sendRenameDocumentDep,
         sendDeleteDocument: sendDeleteDocumentDep,
         sendDocumentContentUpdate: sendDocumentContentUpdateDep,
+        onUpdate: onDocumentUpdate
     });
     
     initChat();
@@ -554,7 +480,7 @@ function renderChannelList() {
     channelListDiv.innerHTML = '';
     appStateDep.channels.forEach(channel => {
         const channelDiv = document.createElement('div');
-        channelDiv.className = 'channel-item';
+        channelDiv.className = 'channel-list-item';  // Changed from 'channel-item' to match CSS
         channelDiv.textContent = channel.name;
         channelDiv.dataset.channelId = channel.id;
         if (channel.id === appStateDep.currentActiveChannelId) {
@@ -562,6 +488,10 @@ function renderChannelList() {
         }
         if (channel.hasNotification) {
             channelDiv.classList.add('has-notification');
+            // Add a notification dot for visual indicator
+            const dot = document.createElement('span');
+            dot.className = 'channel-notification-dot';
+            channelDiv.appendChild(dot);
         }
         channelDiv.addEventListener('click', () => setActiveChannel(channel.id));
         channelListDiv.appendChild(channelDiv);
@@ -580,7 +510,7 @@ function setActiveChannel(channelId, clearNotifications = true) {
     if (clearNotifications && channelListDiv) {
         const channel = appStateDep.channels.find(c => c.id === channelId);
         if (channel) channel.hasNotification = false;
-        const channelDiv = channelListDiv.querySelector(`.channel-item[data-channel-id="${channelId}"]`);
+        const channelDiv = channelListDiv.querySelector(`.channel-list-item[data-channel-id="${channelId}"]`);
         if (channelDiv) channelDiv.classList.remove('has-notification');
     }
     if(messageInput) {

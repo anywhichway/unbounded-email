@@ -111,13 +111,14 @@ const dateMutatingMethods = [
         
         // Add onChange method to the proxy
         Object.defineProperty(proxy, 'onChange', {
-            value: (handler, paths, options = {}) => {
+            value: (paths, handler, options = {}) => {
                 const { autoCreate = true } = options;
-                
+                if(typeof paths === 'string' && paths !== '*') {
+                    paths = [paths];
+                }
                 // Ensure paths exist if autoCreate is true (skip for "*")
-                if (autoCreate) {
+                if (autoCreate && Array.isArray(paths)) {
                     for (const path of paths) {
-                        if (path === '*') continue; // Skip "*" as it watches everything
                         const parts = path.split('.');
                         let current = proxy;
                         for (let i = 0; i < parts.length - 1; i++) {
@@ -138,6 +139,9 @@ const dateMutatingMethods = [
                                 accessAll(obj[key]);
                             }
                         }
+                        if(Array.isArray(obj)) {
+                            accessAll(obj.length);
+                        }
                     }
                 };
                 
@@ -146,9 +150,8 @@ const dateMutatingMethods = [
                 
                 // Create an effect that tracks the specified paths
                 const effect = createEffect(() => {
-                    const hasWildcard = paths.includes('*');
                     
-                    if (hasWildcard) {
+                    if (paths==='*') {
                         // Access all properties recursively to watch for any changes
                         accessAll(proxy);
                     } else {
@@ -233,8 +236,8 @@ const dateMutatingMethods = [
             // Compute changed path
             const changedPath = [...target.__path, property].join('.');
             
-            // Call onChange handlers
-            for (const h of target.__onChangeHandlers) {
+            // Call onChange handlers from the root proxy
+            for (const h of target.__root.__onChangeHandlers) {
                 const matches = h.paths.includes('*') || h.paths.some(p => changedPath === p || changedPath.startsWith(p + '.'));
                 if (matches) {
                     h.handler({
@@ -257,7 +260,7 @@ const dateMutatingMethods = [
                   const result = original.apply(this, args);
                   if (deps) trigger(deps);
                   // Also call onChange handlers for Date mutations
-                  for (const h of target.__onChangeHandlers) {
+                  for (const h of target.__root.__onChangeHandlers) {
                       const matches = h.paths.includes('*') || h.paths.some(p => changedPath === p || changedPath.startsWith(p + '.'));
                       if (matches) {
                           h.handler({
@@ -292,8 +295,8 @@ const dateMutatingMethods = [
             // Compute changed path
             const changedPath = [...target.__path, property].join('.');
             
-            // Call onChange handlers
-            for (const h of target.__onChangeHandlers) {
+            // Call onChange handlers from the root proxy
+            for (const h of target.__root.__onChangeHandlers) {
                 const matches = h.paths.includes('*') || h.paths.some(p => changedPath === p || changedPath.startsWith(p + '.'));
                 if (matches) {
                     h.handler({
@@ -343,13 +346,10 @@ const dateMutatingMethods = [
         return f;
     }
 
-    const interpolateHTML = async (tnode,emplate, stateObj) => {
+    const interpolateHTML = async (node,template, state) => {
         const effect = createEffect(async () => {
                 const renderer = await templateRenderer(template);
-                const newHTML = await renderer(stateObj);
-                
-                // Always update the existing node
-                node.innerHTML = newHTML;
+                node.innerHTML = await renderer(state);
             });
         await effect();
     }
@@ -364,8 +364,6 @@ const dateMutatingMethods = [
             
             // If it returns a simple value (string/number), treat it as reactive text
             if (typeof initialResult !== 'object' || !initialResult) {
-                const stateObj = options.state;
-                
                 // Create the text node first
                 const node = document.createTextNode('');
                 
@@ -380,12 +378,12 @@ const dateMutatingMethods = [
                 return node;
             } else {
                 // If it returns an object/HTMLElement, treat it as a reactive element
-                const stateObj = options.state;
+                const state = options.state;
                 let currentElement = null;
                 
                 const effect = createEffect(async () => {
                     const newDescription = await description();
-                    const newElement = await render(newDescription, { state: stateObj });
+                    const newElement = await render(newDescription, { state });
                     
                     if (currentElement) {
                         currentElement.replaceWith(newElement);
@@ -399,16 +397,12 @@ const dateMutatingMethods = [
         }
 
         if (typeof description !== 'object' || !description) {
-            const stateObj = options.state;
-            
+            const state = options.state;
             // Create the text node first
             const node = document.createTextNode('');
-            
             const effect = createEffect(async () => {
                 const renderer = await templateRenderer(description);
-                const newText = await renderer(stateObj);
-                
-                // Always update the existing node
+                const newText = await renderer(state);
                 node.textContent = newText;
             });
             await effect();
@@ -420,14 +414,14 @@ const dateMutatingMethods = [
         }
 
         let { tagName, attributes = {}, children = [], innerHTML } = description;
-        const stateObj = options.state;
+        const state = options.state;
 
         if (typeof attributes === "function") attributes = await attributes();
         if(typeof innerHTML==="function") innerHTML = await innerHTML();
         const el = document.createElement(tagName);
-        if (stateObj) {
+        if (state) {
             Object.defineProperty(el, "state", {
-                value: stateObj,
+                value: state,
                 enumerable: false,
                 configurable: true
             });
@@ -448,11 +442,11 @@ const dateMutatingMethods = [
                         Object.assign(el.style, value);
                     } else {
                         const renderer = await templateRenderer(value);
-                        el.style.cssText = await renderer(stateObj);
+                        el.style.cssText = await renderer(state);
                     }
                 } else {
                     const renderer = await templateRenderer(String(value));
-                    el.setAttribute(key, await renderer(stateObj));
+                    el.setAttribute(key, await renderer(state));
                 }
             });
             await effect();
@@ -471,7 +465,7 @@ const dateMutatingMethods = [
             }
             el.innerHTML = '';
             for (let child of resolvedChildren) {
-                el.appendChild(await render(child, { state: stateObj }));
+                el.appendChild(await render(child, { state }));
             }
         });
         await effect();

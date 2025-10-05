@@ -10,6 +10,7 @@ import {
     handleShareModulePeerLeave
 } from './share.js';
 import { initMediaFeatures, handleMediaPeerStream, stopAllLocalMedia, setupMediaForNewPeer, cleanupMediaForPeer } from './media.js';
+import { escapeHtml } from './utils.js';
 
 const APP_ID = 'Spaces-0.1.5-jun21';
 
@@ -32,6 +33,7 @@ function saveSpaceToLocalStorage(appState) {
 // window.isHost = false;
 // window.currentRoomId = '';
 // window.localNickname = '';
+window.saveSpaceToLocalStorage = saveSpaceToLocalStorage;
 window.logStatus = logStatus;
 window.cycleTheme = cycleTheme;
 window.handlePttKeyCapture = handlePttKeyCapture;
@@ -210,15 +212,6 @@ let sendInitialChannels, onInitialChannels;
 const CRYPTO_ALGO = 'AES-GCM';
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
-
-function escapeHtml(unsafe) {
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
-}
 
 async function fetchThemesConfig() {
     try {
@@ -634,16 +627,10 @@ export async function joinRoomAndSetup(appState) {
         logStatus(`You joined workspace: ${appState.workspace.roomId} as ${escapeHtml(appState.workspace.nickname)}${appState.workspace.isHost ? ' (Host)' : ''}.`);
         
         const shareModule = window.shareModuleRef;
-        if (shareModule) {
-            shareModule.redrawWhiteboardFromHistoryIfVisible(true);
-            shareModule.renderKanbanBoardIfActive(true);
-            shareModule.renderDocumentsIfActive(true);
+        if (shareModule && shareModule.ensureDefaultDocument) {
+            shareModule.ensureDefaultDocument();
         }
-        if (window.mediaModuleRef) {
-            if (window.mediaModuleRef.setLocalVideoFlip) window.mediaModuleRef.setLocalVideoFlip(spacesSettings.videoFlip, true);
-            if (window.mediaModuleRef.updatePttSettings) window.mediaModuleRef.updatePttSettings(spacesSettings.pttEnabled, spacesSettings.pttKey, spacesSettings.pttKeyDisplay);
-            if (window.mediaModuleRef.setGlobalVolume) window.mediaModuleRef.setGlobalVolume(spacesSettings.globalVolume, true);
-        }
+
     } catch (error) {
         console.error("Error during room join or Trystero setup:", error);
         logStatus(`Error: ${error.message}. Could be incorrect password or network issue. Please try again.`, true); 

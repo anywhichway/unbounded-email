@@ -1,3 +1,4 @@
+import { escapeHtml } from './utils.js';
 let kanbanData = { columns: [] };
 let draggedCardElement = null;
 let draggedCardData = null;
@@ -5,7 +6,7 @@ let kanbanCurrentlyAddingCardToColumnId = null;
 
 let sendKanbanUpdateDep, sendInitialKanbanDep;
 let logStatusDep, showNotificationDep;
-let getPeerNicknamesDep;
+let getPeerNicknamesDep, localGeneratedPeerIdDep, getIsHostDep, onUpdateDep;
 
 let kanbanBoard, newColumnNameInput, addColumnBtn;
 
@@ -13,15 +14,6 @@ function selectKanbanDomElements() {
     kanbanBoard = document.getElementById('kanbanBoard');
     newColumnNameInput = document.getElementById('newColumnNameInput');
     addColumnBtn = document.getElementById('addColumnBtn');
-}
-
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
 }
 
 export function initKanbanFeatures(dependencies) {
@@ -32,11 +24,14 @@ export function initKanbanFeatures(dependencies) {
     logStatusDep = dependencies.logStatus;
     showNotificationDep = dependencies.showNotification;
     getPeerNicknamesDep = dependencies.getPeerNicknames;
+    localGeneratedPeerIdDep = dependencies.localGeneratedPeerId;
+    getIsHostDep = dependencies.getIsHost;
+    onUpdateDep = dependencies.onUpdate;
 
-    if (!addColumnBtn || !kanbanBoard || !newColumnNameInput) {
-        console.warn("Kanban DOM elements not found, Kanban feature might be partially disabled.");
-    } else {
+    if (addColumnBtn && newColumnNameInput) {
         addColumnBtn.addEventListener('click', handleAddKanbanColumn);
+    } else {
+        console.warn("Kanban DOM elements not found, Kanban feature might be partially disabled.");
     }
     
     renderKanbanBoard();
@@ -194,14 +189,19 @@ function handleKanbanDrop(e) {
 }
 
 function handleAddKanbanColumn() {
-    if(!newColumnNameInput) return;
-    const columnName = newColumnNameInput.value.trim(); if (!columnName) return;
+    if (!newColumnNameInput) return;
+    const columnName = newColumnNameInput.value.trim();
+    if (!columnName) {
+        if (logStatusDep) logStatusDep("Column name cannot be empty.", true);
+        newColumnNameInput.focus();
+        return;
+    }
     const newColumn = { id: `col-${Date.now()}`, title: columnName, cards: [] };
-    if (!kanbanData.columns) kanbanData.columns = [];
     kanbanData.columns.push(newColumn);
     if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'addColumn', column: newColumn });
-    renderKanbanBoard(); newColumnNameInput.value = '';
-    if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('kanbanSection');
+    if (onUpdateDep) onUpdateDep();
+    renderKanbanBoard();
+    newColumnNameInput.value = '';
 }
 
 function handleShowAddCardForm(columnId) {
@@ -232,12 +232,9 @@ function handleSaveNewCard(columnId) {
         };
         if (!column.cards) column.cards = [];
         column.cards.push(newCard);
-        
-        if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'addCard', columnId, card: newCard });
-        
-        kanbanCurrentlyAddingCardToColumnId = null; 
-        renderKanbanBoard(); 
-        if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('kanbanSection');
+        if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'addCard', columnId: columnId, card: newCard });
+        if (onUpdateDep) onUpdateDep();
+        renderKanbanBoard();
     }
 }
 
@@ -247,34 +244,38 @@ function handleCancelAddCard() {
 }
 
 function handleUpdateCardPriority(columnId, cardId, newPriorityStr) {
-    const newPriority = parseInt(newPriorityStr);
+    const newPriority = parseInt(newPriorityStr, 10);
     const column = kanbanData.columns.find(c => c.id === columnId);
     if (column && column.cards) {
         const card = column.cards.find(c => c.id === cardId);
-        if (card) {
+        if (card && card.priority !== newPriority) {
             card.priority = newPriority;
-            if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'updateCardPriority', columnId, cardId, priority: newPriority });
-            renderKanbanBoard(); 
-            if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('kanbanSection');
+            if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'updateCard', columnId, cardId, updates: { priority: newPriority } });
+            if (onUpdateDep) onUpdateDep();
+            renderKanbanBoard();
         }
     }
 }
 
 function handleDeleteKanbanColumn(columnId) {
-    if (!confirm("Delete column and all cards?")) return;
-    kanbanData.columns = kanbanData.columns.filter(col => col.id !== columnId);
-    if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'deleteColumn', columnId });
-    renderKanbanBoard();
-    if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('kanbanSection');
+    const colIndex = kanbanData.columns.findIndex(c => c.id === columnId);
+    if (colIndex > -1) {
+        kanbanData.columns.splice(colIndex, 1);
+        if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'deleteColumn', columnId: columnId });
+        if (onUpdateDep) onUpdateDep();
+        renderKanbanBoard();
+    }
 }
 function handleDeleteKanbanCard(columnId, cardId) {
-    if (!confirm("Delete card?")) return;
-    const column = kanbanData.columns.find(col => col.id === columnId);
+    const column = kanbanData.columns.find(c => c.id === columnId);
     if (column && column.cards) {
-        column.cards = column.cards.filter(card => card.id !== cardId);
-        if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'deleteCard', columnId, cardId });
-        renderKanbanBoard();
-        if (getPeerNicknamesDep && Object.keys(getPeerNicknamesDep()).length > 0 && showNotificationDep) showNotificationDep('kanbanSection');
+        const cardIndex = column.cards.findIndex(c => c.id === cardId);
+        if (cardIndex > -1) {
+            column.cards.splice(cardIndex, 1);
+            if (sendKanbanUpdateDep) sendKanbanUpdateDep({ type: 'deleteCard', columnId: columnId, cardId: cardId });
+            if (onUpdateDep) onUpdateDep();
+            renderKanbanBoard();
+        }
     }
 }
 
@@ -388,6 +389,8 @@ export function loadShareableData(importedData) {
             }
         });
     }
+    // Add this to force render after loading, matching handleInitialKanban's behavior
+    renderKanbanBoardIfActive(true);
 }
 
 export function resetKanbanState() {
