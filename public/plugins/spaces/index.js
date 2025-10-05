@@ -1,4 +1,6 @@
 // index.js - Global event handlers
+// Note: Some handlers like onClickSettingsSave, onClickSidebarButton, onClickExportWorkspace,
+// and onChangeImportFilePicker are defined in main.js and will overwrite these placeholder comments
 
 window.onClickCycleTheme = function() {
     if (window.cycleTheme) window.cycleTheme();
@@ -20,9 +22,7 @@ window.onClickSettingsPttKey = function() {
     document.addEventListener('keydown', window.handlePttKeyCapture, true);
 };
 
-window.onClickSettingsSave = function() {
-    if (window.onClickSettingsSave) window.onClickSettingsSave();
-};
+// onClickSettingsSave is defined in main.js
 
 window.onInputSettingsGlobalVolume = function() {
     const slider = document.getElementById('settingsGlobalVolumeSlider');
@@ -34,22 +34,16 @@ window.onInputSettingsGlobalVolume = function() {
     }
 };
 
-window.onClickSidebarButton = function(button) {
-    if (window.onClickSidebarButton) window.onClickSidebarButton(button);
-};
+// onClickSidebarButton is defined in main.js
 
-window.onClickExportWorkspace = function() {
-    if (window.onClickExportWorkspace) window.onClickExportWorkspace();
-};
+// onClickExportWorkspace is defined in main.js
 
 window.onClickImportWorkspace = function() {
     const picker = document.getElementById('importFilePicker');
     if(picker) picker.click();
 };
 
-window.onChangeImportFilePicker = function(event) {
-    if (window.onChangeImportFilePicker) window.onChangeImportFilePicker(event);
-};
+// onChangeImportFilePicker is defined in main.js
 
 window.onClickCreatePartyBtn = function() {
     const joinFields = document.getElementById('joinWorkspaceFields');
@@ -70,12 +64,18 @@ window.onClickJoinWorkspaceBtn = function() {
 };
 
 window.onClickConfirmCreateBtn = function() {
-    window.isHost = true;
+    // Set isHost in workspace state instead of window global
+    if (window.appState && window.appState.workspace) {
+        window.appState.workspace.isHost = true;
+    }
     if (window.joinRoomAndSetup) window.joinRoomAndSetup();
 };
 
 window.onClickConfirmJoinBtn = function() {
-    window.isHost = false;
+    // Set isHost in workspace state instead of window global
+    if (window.appState && window.appState.workspace) {
+        window.appState.workspace.isHost = false;
+    }
     if (window.joinRoomAndSetup) window.joinRoomAndSetup();
 };
 
@@ -97,8 +97,9 @@ window.onClickCancelJoinBtn = function() {
 
 window.onClickCopyRoomCodeBtn = function() {
     const btn = document.getElementById('copyRoomCodeBtn');
-    if(window.currentRoomId && btn){
-        navigator.clipboard.writeText(window.currentRoomId).then(() => {
+    const roomId = window.appState && window.appState.workspace ? window.appState.workspace.roomId : null;
+    if(roomId && btn){
+        navigator.clipboard.writeText(roomId).then(() => {
             btn.textContent = '✅';
             btn.title = 'Copied!';
             setTimeout(() => {

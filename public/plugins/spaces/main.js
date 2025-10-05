@@ -28,21 +28,45 @@ function saveSpaceToLocalStorage(appState) {
     }
 }
 
-// Expose functions and variables on window for index.js
-// REMOVED: Global state variables
-// window.isHost = false;
-// window.currentRoomId = '';
-// window.localNickname = '';
+// ============================================================================
+// Expose necessary functions and state on window for inline onclick handlers
+// and cross-module communication
+// ============================================================================
+
+// Core functions needed by inline handlers and other modules
 window.saveSpaceToLocalStorage = saveSpaceToLocalStorage;
 window.logStatus = logStatus;
 window.cycleTheme = cycleTheme;
 window.handlePttKeyCapture = handlePttKeyCapture;
 window.isCapturingPttKey = false;
 
+// Event handlers for UI interactions (called from inline onclick attributes in index.html)
 window.onClickSettingsSave = async () => {
-    // This function will need to be updated to use appState if it's to remain active.
-    // For now, assuming it might be deprecated in favor of direct state binding.
-    console.warn("onClickSettingsSave needs refactoring for Lightview state.");
+    const newNickname = settingsNicknameInput ? settingsNicknameInput.value.trim() : '';
+    const newVideoFlip = settingsVideoFlipCheckbox ? settingsVideoFlipCheckbox.checked : false;
+    const newPttEnabled = settingsPttEnabledCheckbox ? settingsPttEnabledCheckbox.checked : false;
+    const newGlobalVolume = settingsGlobalVolumeSlider ? parseFloat(settingsGlobalVolumeSlider.value) : 1;
+
+    if (newNickname && window.appState && window.appState.workspace && window.appState.workspace.nickname !== newNickname) {
+        window.appState.workspace.nickname = newNickname;
+        localStorage.setItem('viewPartyNickname', newNickname);
+        if (currentNicknameSpan) currentNicknameSpan.textContent = escapeHtml(newNickname);
+        if (sendNickname) await sendNickname({ nickname: newNickname, initialJoin: false, isHost: window.appState.workspace.isHost });
+        logStatus(`Nickname updated to ${escapeHtml(newNickname)}.`);
+    }
+
+    spacesSettings.videoFlip = newVideoFlip;
+    spacesSettings.pttEnabled = newPttEnabled;
+    spacesSettings.globalVolume = newGlobalVolume;
+    saveSettings();
+
+    if (window.mediaModuleRef) {
+        if (window.mediaModuleRef.setLocalVideoFlip) window.mediaModuleRef.setLocalVideoFlip(newVideoFlip, true);
+        if (window.mediaModuleRef.updatePttSettings) window.mediaModuleRef.updatePttSettings(newPttEnabled, spacesSettings.pttKey, spacesSettings.pttKeyDisplay);
+        if (window.mediaModuleRef.setGlobalVolume) window.mediaModuleRef.setGlobalVolume(newGlobalVolume, true);
+    }
+
+    logStatus("Settings saved.");
 };
 
 window.onClickSidebarButton = (button) => {
@@ -62,7 +86,7 @@ window.onClickSidebarButton = (button) => {
     }
     if (targetSectionId === 'videoChatSection' && window.mediaModuleRef && window.mediaModuleRef.setLocalVideoFlip) window.mediaModuleRef.setLocalVideoFlip(spacesSettings.videoFlip, true);
     if (targetSectionId === 'settingsSection') {
-        populateSettingsSection();
+        populateSettingsSection(window.appState);
         if (isCapturingPttKey) {
             isCapturingPttKey = false;
             if (pttKeyInstructions) pttKeyInstructions.classList.add('hidden');
@@ -74,6 +98,8 @@ window.onClickSidebarButton = (button) => {
 
 window.onClickExportWorkspace = async () => {
     if (!roomApi) { logStatus("You must be in a workspace to export.", true); return; }
+    const currentRoomId = window.appState && window.appState.workspace ? window.appState.workspace.roomId : null;
+    if (!currentRoomId) { logStatus("No active workspace to export.", true); return; }
     const password = prompt("Enter a password to encrypt the workspace data (this is for the file, not the workspace access password):");
     if (!password) { logStatus("Export cancelled: No password provided.", true); return; }
     try {
@@ -179,7 +205,6 @@ const globalVolumeValue = document.getElementById('globalVolumeValue');
 
 let roomApi;
 let currentActiveSection = 'chatSection';
-let peerNicknames = {};
 let importedWorkspaceState = null;
 
 let availableThemes = [];
@@ -284,7 +309,7 @@ async function loadSettings() {
         if (availableThemes.length > 0) spacesSettings.theme = availableThemes[0];
       }
 
-    populateSettingsSection();
+    populateSettingsSection(window.appState); // Use appState instead of global variables
     if (spacesSettings.theme) {
       applyTheme(spacesSettings.theme);
     }
@@ -304,10 +329,10 @@ function saveSettings() {
     localStorage.setItem('spacesAppSettings', JSON.stringify(spacesSettings));
 }
 
-function populateSettingsSection() {
+function populateSettingsSection(appState) {
     if (!settingsNicknameInput || !settingsVideoFlipCheckbox || !settingsPttEnabledCheckbox || !settingsPttKeyBtn || !pttHotkeySettingsContainer ||
         !settingsGlobalVolumeSlider || !globalVolumeValue) return;
-    settingsNicknameInput.value = window.localNickname;
+    settingsNicknameInput.value = appState && appState.workspace ? appState.workspace.nickname : '';
     settingsVideoFlipCheckbox.checked = spacesSettings.videoFlip;
     settingsPttEnabledCheckbox.checked = spacesSettings.pttEnabled;
     settingsPttKeyBtn.textContent = spacesSettings.pttKeyDisplay;
@@ -411,7 +436,11 @@ function updateUserList() {
     console.log("updateUserList should be replaced by a reactive Lightview component.");
 }
 function findPeerIdByNickname(nickname) {
-    for (const id in peerNicknames) if (peerNicknames[id].toLowerCase() === nickname.toLowerCase()) return id;
+    if (!window.appState || !window.appState.workspace || !window.appState.workspace.peers) return null;
+    const peers = window.appState.workspace.peers;
+    for (const id in peers) {
+        if (peers[id].toLowerCase() === nickname.toLowerCase()) return id;
+    }
     return null;
 }
 async function deriveKeyFromPassword_ImportExport(password, salt) {
@@ -695,14 +724,15 @@ function resetToSetupState(appState) {
     if(defaultSectionButton)defaultSectionButton.classList.add('active');
     if(defaultSection)defaultSection.classList.remove('hidden');
     currentActiveSection='chatSection';
-    peerNicknames={}; // This should be removed as it's in appState now
     importedWorkspaceState=null;
 }
 
-// Expose the function globally for use in other scripts
+// ============================================================================
+// Additional window exports for use by index.html and index.js
+// ============================================================================
+
 window.joinRoomAndSetup = joinRoomAndSetup;
 
-// Add this function before initializeApp()
 window.loadSavedSpace = async function(roomId) {
     console.log('=== loadSavedSpace CALLED ===');
     console.log('roomId:', roomId);

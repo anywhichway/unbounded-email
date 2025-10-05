@@ -1,11 +1,10 @@
 let { state } = Lightview();
-let workspaceState;
 
 let incomingFileBuffers = new Map();
 let currentReplyParentId = null; // NEW: To track which message we are replying to
 const MAX_THREAD_DEPTH = 4; // NEW: Max reply depth
 
-let appStateDep; // NEW: To hold the central app state
+let appStateDep; // Central app state - references appState.workspace
 
 import { debounce } from './utils.js';
 import {
@@ -99,7 +98,7 @@ function selectChatDomElements() {
 export function initShareFeatures(dependencies) {
     selectChatDomElements();
 
-    appStateDep = dependencies.workspace; // NEW: Get the workspace object directly
+    appStateDep = dependencies.workspace; // Get the workspace object directly
 
     const saveSpaceToLocalStorageDep = dependencies.saveSpaceToLocalStorage;
     const debouncedSave = debounce(() => {
@@ -108,26 +107,17 @@ export function initShareFeatures(dependencies) {
         }
     }, 1000);
 
-    // REMOVED: Internal state creation
-    // workspaceState = state({
-    //     chatHistory: [],
-    //     channels: [],
-    //     currentActiveChannelId: null,
-    // });
-
-    // NEW: Listen to the central state for changes to save
-    // Note: Since appStateDep is the workspace object, we can check isHost directly
-    // But for saving, we need to debounce changes, but since it's direct, perhaps use a different approach
-    // For now, save on certain actions
+    // Chat, channel, and feature state is now managed in appStateDep (workspace object)
+    // No need for a separate workspaceState object
 
     logStatusDep = dependencies.logStatus;
     showNotificationDep = dependencies.showNotification;
     localGeneratedPeerIdDep = dependencies.localGeneratedPeerId;
     getPeerNicknamesDep = dependencies.getPeerNicknames;
-    getIsHostDep = () => appStateDep.isHost; // NEW: Read from workspace
-    getLocalNicknameDep = () => appStateDep.nickname; // NEW: Read from workspace
+    getIsHostDep = () => appStateDep.isHost; // Read from centralized workspace state
+    getLocalNicknameDep = () => appStateDep.nickname; // Read from centralized workspace state
     findPeerIdByNicknameDepFnc = dependencies.findPeerIdByNicknameFnc;
-    currentRoomIdDep = () => appStateDep.roomId; // NEW: Read from workspace
+    currentRoomIdDep = () => appStateDep.roomId; // Read from centralized workspace state
 
     
     sendChatMessageDep = dependencies.sendChatMessage;
