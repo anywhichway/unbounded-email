@@ -1,4 +1,3 @@
-
 let documents = [];
 let currentActiveDocumentId = null;
 
@@ -158,8 +157,8 @@ export function initDocumentFeatures(dependencies) {
         handleDocumentContentUpdate,
         renderDocumentsIfActive,
         ensureDefaultDocument,
-        getDocumentShareData,
-        loadDocumentData,
+        getShareableData,
+        loadShareableData,
         resetDocumentState,
         sendInitialDocumentsStateToPeer
     };
@@ -325,7 +324,7 @@ export function handleDocumentContentUpdate(data, peerId) {
     }
 }
 
-export function getDocumentShareData() {
+export function getShareableData() {
     if (currentActiveDocumentId && collaborativeEditor) { 
         const activeDoc = documents.find(d => d.id === currentActiveDocumentId);
         if (activeDoc && collaborativeEditor.innerHTML !== activeDoc.htmlContent) {
@@ -335,7 +334,9 @@ export function getDocumentShareData() {
     return { docs: documents, activeId: currentActiveDocumentId };
 }
 
-export function loadDocumentData(importedDocs, activeId) {
+export function loadShareableData(data) {
+    const importedDocs = data.docs || [];
+    const activeId = data.activeId || null;
     documents = importedDocs || []; 
     documents.forEach(doc => {
         if (doc.htmlContent) {
@@ -360,6 +361,6 @@ export function resetDocumentState() {
 
 export function sendInitialDocumentsStateToPeer(peerId, getIsHost) {
     if (getIsHost && getIsHost() && sendInitialDocumentsDep) {
-        sendInitialDocumentsDep(getDocumentShareData(), peerId);
+        sendInitialDocumentsDep(getShareableData(), peerId);
     }
 }

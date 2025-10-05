@@ -1,4 +1,3 @@
-
 let wbCtx, wbIsDrawing = false, wbLastX, wbLastY;
 let currentWbTool = 'pen';
 let wbShapeStartX, wbShapeStartY;
@@ -43,8 +42,8 @@ export function initWhiteboardFeatures(dependencies) {
             handleInitialWhiteboard: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); },
             redrawWhiteboardFromHistoryIfVisible: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); },
             resizeWhiteboardAndRedraw: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); },
-            getWhiteboardHistory: () => [],
-            loadWhiteboardData: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); },
+            getShareableData: () => [],
+            loadShareableData: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); },
             resetWhiteboardState: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); },
             sendInitialWhiteboardStateToPeer: () => { if(logStatusDep) logStatusDep("WB Error: Attempted to use disabled whiteboard.", true); }
         };
@@ -150,8 +149,8 @@ export function initWhiteboardFeatures(dependencies) {
         handleInitialWhiteboard,
         redrawWhiteboardFromHistoryIfVisible,
         resizeWhiteboardAndRedraw,
-        getWhiteboardHistory,
-        loadWhiteboardData,
+        getShareableData,
+        loadShareableData,
         resetWhiteboardState,
         sendInitialWhiteboardStateToPeer
     };
@@ -426,11 +425,11 @@ export function handleInitialWhiteboard(history, peerId, getIsHost) {
     }
 }
 
-export function getWhiteboardHistory() {
+export function getShareableData() {
     return whiteboardHistory;
 }
 
-export function loadWhiteboardData(importedHistory) {
+export function loadShareableData(importedHistory) {
     whiteboardHistory = importedHistory || [];
     redrawWhiteboardFromHistoryIfVisible(true);
 }

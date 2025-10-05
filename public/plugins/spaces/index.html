@@ -56,34 +56,40 @@
         currentAccount: null,
         currentFolder: null,
         selectedFolderId: 'folder-Spaces',
+        
+        // NEW: Central state for the active workspace
+        workspace: null, // Initially null, populated on join
+
         getAccountIconClass,
         getCount: ({ folder, accountEmail, tagName, state }) => 0, // For now, no counts
         async selectFolder(folderType, value) {
-            const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+            // const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
             if (folderType === 'account') {
                 const roomName = value; // value is the account email
-                const password = "";    // No password for account-based spaces
-                const username = value; // Use full email as username
-
-                // Set values for joinRoomAndSetup
-                window.roomIdInput.value = roomName;
-                window.joinPasswordInput.value = password;
-                window.localNickname = username;
-                window.nicknameInput.value = username;
-
-                // We need to join a specific room ID, so we must use the "join" path in joinRoomAndSetup.
-                // This means setting isHost to false initially.
-                window.isHost = false;
+                
+                this.workspace = {
+                    roomId: roomName,
+                    nickname: localStorage.getItem('viewPartyNickname') || roomName,
+                    isHost: true,
+                    status: 'disconnected',
+                    peers: {},
+                    chatHistory: [],
+                    channels: [],
+                    currentActiveChannelId: null,
+                    kanbanData: { columns: [] },
+                    whiteboardHistory: [],
+                    documents: {},
+                };
 
                 // Call the setup function. It's async.
-                window.joinRoomAndSetup().then(() => {
-                    // After successfully joining, we declare ourselves the host of this personal space.
-                    // This ensures we are the one to send initial state to other peers who might join.
-                    window.isHost = true;
+                await window.joinRoomAndSetup(this);
+                
+                if (this.workspace && this.workspace.status === 'connected') {
                     console.log(`Joined personal space '${roomName}' and assumed host role.`);
                     showChatSection();
                     this.selectedFolderId = 'folder-Chat';
-                });
+                }
+
             } else if (folderType === 'folder') {
                 this.currentFolder = value;
                 this.currentAccount = null;
@@ -97,51 +103,46 @@
                 if (value === "Create Space") {
                     document.getElementById('inRoomInterface').classList.add('hidden');
                     document.getElementById('setupSection').classList.remove('hidden');
-                    window.onClickCreatePartyBtn();
-                    return;
+                    document.getElementById('createWorkspaceFields').classList.remove('hidden');
+                    document.getElementById('joinWorkspaceFields').classList.add('hidden');
                 }
                 // Special handling for Join Space
                 if (value === "Join Space") {
                     document.getElementById('inRoomInterface').classList.add('hidden');
                     document.getElementById('setupSection').classList.remove('hidden');
-                    window.onClickJoinWorkspaceBtn();
-                    return;
+                    document.getElementById('joinWorkspaceFields').classList.remove('hidden');
+                    document.getElementById('createWorkspaceFields').classList.add('hidden');
                 }
                 // If it's an existing space
-                if (spaces[value]) {
-                    window.roomIdInput.value = value;
-                    window.joinPasswordInput.value = spaces[value];
-                    window.isHost = false;
-                    window.joinRoomAndSetup().then(() => {
-                        showChatSection();
-                        this.selectedFolderId = 'folder-Chat';
-                    });
-                    return;
-                }
+                // if (spaces[value]) {
+                //     this.workspace = {
+                //         roomId: value,
+                //         nickname: localStorage.getItem('viewPartyNickname') || '',
+                //         isHost: false, // Assuming joining a saved space means you are not the host initially
+                //         status: 'disconnected',
+                //         peers: {},
+                //         // ... other fields will be loaded from localStorage in joinRoomAndSetup
+                //     };
+                //     await window.joinRoomAndSetup(this);
+                // }
                 // If it's a tab folder, switch to that section
                 const sectionId = folderToSection[value];
                 if (sectionId) {
-                    // Directly switch sections since tab buttons are removed
                     const targetSectionElement = document.getElementById(sectionId);
                     if (targetSectionElement) {
-                        // Hide all sections and show the target one
                         const contentSections = document.querySelectorAll('.content-section');
                         contentSections.forEach(section => section.classList.add('hidden'));
                         targetSectionElement.classList.remove('hidden');
                         
-                        // Special handling for modules
-                        const shareModule = window.shareModuleRef;
-                        if (shareModule) {
-                            if (sectionId === 'whiteboardSection' && shareModule.resizeWhiteboardAndRedraw) shareModule.resizeWhiteboardAndRedraw();
-                            if (sectionId === 'kanbanSection' && shareModule.renderKanbanBoardIfActive) shareModule.renderKanbanBoardIfActive();
-                            if (sectionId === 'documentsSection' && shareModule.renderDocumentsIfActive) shareModule.renderDocumentsIfActive();
-                        }
-                        if (sectionId === 'videoChatSection' && window.mediaModuleRef && window.mediaModuleRef.setLocalVideoFlip) {
-                            window.mediaModuleRef.setLocalVideoFlip(true); // Default to true
-                        }
-                        if (sectionId === 'settingsSection') {
-                            if (window.populateSettingsSection) window.populateSettingsSection();
-                        }
+                        // Also update sidebar button active state
+                        const sidebarButtons = document.querySelectorAll('.sidebar-button');
+                        sidebarButtons.forEach(btn => {
+                            if (btn.getAttribute('data-section') === sectionId) {
+                                btn.classList.add('active');
+                            } else {
+                                btn.classList.remove('active');
+                            }
+                        });
                     }
                 }
             }
@@ -225,7 +226,7 @@
     <div class="app-header">
         <div class="app-header-title-group">
             <h1>Spaces</h1>
-            <button id="cycleThemeBtn" class="btn btn-outline theme-cycle-button" onclick="onClickCycleTheme()">
+            <button id="cycleThemeBtn" class="btn btn-outline theme-cycle-button" onclick="cycleTheme()">
                 <span class="icon">🎨</span>
                 <span id="currentThemeNameSpan">Light</span>
             </button>
@@ -237,17 +238,17 @@
         <input type="text" id="nicknameInput" placeholder="Enter your username">
 
         <div class="button-group">
-            <button id="createPartyBtn" class="btn" onclick="onClickCreatePartyBtn()">Create Workspace</button>
-            <button id="joinWorkspaceBtn" class="btn" onclick="onClickJoinWorkspaceBtn()">Join Workspace</button>
-            <button id="importWorkspaceBtn" class="btn" onclick="onClickImportWorkspace()">Import Workspace</button>
+            <button id="createPartyBtn" class="btn">Create Workspace</button>
+            <button id="joinWorkspaceBtn" class="btn">Join Workspace</button>
+            <button id="importWorkspaceBtn" class="btn">Import Workspace</button>
         </div>
 
         <div id="createWorkspaceFields" class="hidden">
             <label for="roomPasswordInput">Workspace Password:</label>
             <input type="password" id="roomPasswordInput" placeholder="Enter workspace password">
             <div class="button-group">
-                <button id="confirmCreateBtn" class="btn" onclick="onClickConfirmCreateBtn()">Create</button>
-                <button id="cancelCreateBtn" class="btn" onclick="onClickCancelCreateBtn()">Cancel</button>
+                <button id="confirmCreateBtn" class="btn">Create</button>
+                <button id="cancelCreateBtn" class="btn">Cancel</button>
             </div>
         </div>
 
@@ -257,8 +258,8 @@
             <label for="joinPasswordInput">Workspace Password:</label>
             <input type="password" id="joinPasswordInput" placeholder="Enter workspace password">
             <div class="button-group">
-                <button id="confirmJoinBtn" class="btn" onclick="onClickConfirmJoinBtn()">Join</button>
-                <button id="cancelJoinBtn" class="btn" onclick="onClickCancelJoinBtn()">Cancel</button>
+                <button id="confirmJoinBtn" class="btn">Join</button>
+                <button id="cancelJoinBtn" class="btn">Cancel</button>
             </div>
         </div>
 

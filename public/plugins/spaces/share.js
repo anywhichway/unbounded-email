@@ -5,10 +5,12 @@ let incomingFileBuffers = new Map();
 let currentReplyParentId = null; // NEW: To track which message we are replying to
 const MAX_THREAD_DEPTH = 4; // NEW: Max reply depth
 
+let appStateDep; // NEW: To hold the central app state
+
 import {
     initKanbanFeatures,
-    getKanbanData,
-    loadKanbanData,
+    getShareableData as getKanbanData,
+    loadShareableData as loadKanbanData,
     resetKanbanState,
     handleKanbanUpdate as handleKanbanUpdateInternal,
     handleInitialKanban as handleInitialKanbanInternal,
@@ -18,8 +20,8 @@ import {
 
 import {
     initWhiteboardFeatures,
-    getWhiteboardHistory,
-    loadWhiteboardData,
+    getShareableData as getWhiteboardHistory,
+    loadShareableData as loadWhiteboardData,
     resetWhiteboardState,
     handleDrawCommand as handleDrawCommandInternal,
     handleInitialWhiteboard as handleInitialWhiteboardInternal,
@@ -30,8 +32,8 @@ import {
 
 import {
     initDocumentFeatures,
-    getDocumentShareData,
-    loadDocumentData,
+    getShareableData as getDocumentShareData,
+    loadShareableData as loadDocumentData,
     resetDocumentState,
     handleInitialDocuments as handleInitialDocumentsInternal,
     handleCreateDocument as handleCreateDocumentInternal,
@@ -133,7 +135,7 @@ async function generateImagePreview(file) {
                     newHeight = MAX_PREVIEW_DIM;
                     newWidth = newHeight * aspectRatio;
                 }
-                                
+                                                
                 newWidth = Math.max(1, Math.round(Math.min(MAX_PREVIEW_DIM, newWidth)));
                 newHeight = Math.max(1, Math.round(Math.min(MAX_PREVIEW_DIM, newHeight)));
 
@@ -190,28 +192,35 @@ function selectChatDomElements() {
 export function initShareFeatures(dependencies) {
     selectChatDomElements();
 
+    appStateDep = dependencies.workspace; // NEW: Get the workspace object directly
+
     const saveSpaceToLocalStorageDep = dependencies.saveSpaceToLocalStorage;
     const debouncedSave = debounce(() => {
-        if (saveSpaceToLocalStorageDep) saveSpaceToLocalStorageDep();
+        if (appStateDep.isHost) {
+            saveSpaceToLocalStorageDep();
+        }
     }, 1000);
 
-    workspaceState = state({
-        chatHistory: [],
-        channels: [],
-        currentActiveChannelId: null,
-    });
+    // REMOVED: Internal state creation
+    // workspaceState = state({
+    //     chatHistory: [],
+    //     channels: [],
+    //     currentActiveChannelId: null,
+    // });
 
-    workspaceState.onChange(debouncedSave, ['*']);
-
+    // NEW: Listen to the central state for changes to save
+    // Note: Since appStateDep is the workspace object, we can check isHost directly
+    // But for saving, we need to debounce changes, but since it's direct, perhaps use a different approach
+    // For now, save on certain actions
 
     logStatusDep = dependencies.logStatus;
     showNotificationDep = dependencies.showNotification;
     localGeneratedPeerIdDep = dependencies.localGeneratedPeerId;
     getPeerNicknamesDep = dependencies.getPeerNicknames;
-    getIsHostDep = dependencies.getIsHost;
-    getLocalNicknameDep = dependencies.getLocalNickname;
+    getIsHostDep = () => appStateDep.isHost; // NEW: Read from workspace
+    getLocalNicknameDep = () => appStateDep.nickname; // NEW: Read from workspace
     findPeerIdByNicknameDepFnc = dependencies.findPeerIdByNicknameFnc;
-    currentRoomIdDep = dependencies.currentRoomId;
+    currentRoomIdDep = () => appStateDep.roomId; // NEW: Read from workspace
 
     
     sendChatMessageDep = dependencies.sendChatMessage;
@@ -263,29 +272,20 @@ export function initShareFeatures(dependencies) {
     initChat();
     
     const importedState = dependencies.getImportedWorkspaceState();
-    if (importedState && getIsHostDep && getIsHostDep()) {
-        loadChatHistoryFromImport(importedState.chatHistory || []);
-        if (importedState.channels) {
-            workspaceState.channels.push(...importedState.channels);
-            workspaceState.currentActiveChannelId = importedState.currentActiveChannelIdForImport || (workspaceState.channels.length > 0 ? workspaceState.channels[0].id : null);
-        }
-        if (whiteboardModuleRef) whiteboardModuleRef.loadWhiteboardData(importedState.whiteboardHistory || []);
-        if (kanbanModuleRef) kanbanModuleRef.loadKanbanData(importedState.kanbanData || { columns: [] });
-        if (documentModuleRef) documentModuleRef.loadDocumentData(importedState.documents || [], importedState.currentActiveDocumentId);
-        
-        if(dependencies.clearImportedWorkspaceState) dependencies.clearImportedWorkspaceState();
+    if (importedState) {
+        console.log("Host importing workspace state from file/storage...");
+        loadShareableData(importedState);
+        dependencies.clearImportedWorkspaceState();
     }
     
     if (getIsHostDep && getIsHostDep()) {
-        const generalChannelExists = workspaceState.channels.some(ch => ch.name === "#general");
-        if (!generalChannelExists) {
-            _createAndBroadcastChannel("#general", workspaceState.channels.length === 0); 
+        if (appStateDep.channels.length === 0) {
+            _createAndBroadcastChannel('#general', true);
         }
-        if (documentModuleRef) documentModuleRef.ensureDefaultDocument();
+        documentModuleRef.ensureDefaultDocument();
     } else {
-        if (workspaceState.channels.length > 0 && !workspaceState.currentActiveChannelId) {
-            setActiveChannel(workspaceState.channels[0].id, false);
-        }
+        if (sendInitialChannelsDep) sendInitialChannelsDep({}, null, { to: 'host' });
+        if (sendInitialDocumentsDep) sendInitialDocumentsDep({}, null, { to: 'host' });
     }
 
 
@@ -301,58 +301,58 @@ export function initShareFeatures(dependencies) {
         
         handleDrawCommand: (data, peerId) => {
             whiteboardModuleRef.handleDrawCommand(data, peerId);
-            if (whiteboardModuleRef) workspaceState.whiteboardHistory = whiteboardModuleRef.getWhiteboardHistory();
+            if (whiteboardModuleRef) appStateDep.whiteboardHistory = whiteboardModuleRef.getWhiteboardHistory();
         },
         handleInitialWhiteboard: (data, peerId) => {
             whiteboardModuleRef.handleInitialWhiteboard(data, peerId, getIsHostDep);
-            if (whiteboardModuleRef) workspaceState.whiteboardHistory = whiteboardModuleRef.getWhiteboardHistory();
+            if (whiteboardModuleRef) appStateDep.whiteboardHistory = whiteboardModuleRef.getWhiteboardHistory();
         },
         handleKanbanUpdate: (data, peerId) => {
             kanbanModuleRef.handleKanbanUpdate(data, peerId, localGeneratedPeerIdDep);
-            if (kanbanModuleRef) workspaceState.kanbanData = kanbanModuleRef.getKanbanData();
+            if (kanbanModuleRef) appStateDep.kanbanData = kanbanModuleRef.getKanbanData();
         },
         handleInitialKanban: (data, peerId) => {
             kanbanModuleRef.handleInitialKanban(data, peerId, getIsHostDep, localGeneratedPeerIdDep);
-            if (kanbanModuleRef) workspaceState.kanbanData = kanbanModuleRef.getKanbanData();
+            if (kanbanModuleRef) appStateDep.kanbanData = kanbanModuleRef.getKanbanData();
         },
         handleInitialDocuments: (data, peerId) => {
             documentModuleRef.handleInitialDocuments(data, peerId);
             if (documentModuleRef) {
                 const docData = documentModuleRef.getDocumentShareData();
-                workspaceState.documents = docData.docs;
-                workspaceState.currentActiveDocumentId = docData.activeId;
+                appStateDep.documents = docData.docs;
+                appStateDep.currentActiveDocumentId = docData.activeId;
             }
         },
         handleCreateDocument: (data, peerId) => {
             documentModuleRef.handleCreateDocument(data, peerId);
             if (documentModuleRef) {
                 const docData = documentModuleRef.getDocumentShareData();
-                workspaceState.documents = docData.docs;
-                workspaceState.currentActiveDocumentId = docData.activeId;
+                appStateDep.documents = docData.docs;
+                appStateDep.currentActiveDocumentId = docData.activeId;
             }
         },
         handleRenameDocument: (data, peerId) => {
             documentModuleRef.handleRenameDocument(data, peerId);
             if (documentModuleRef) {
                 const docData = documentModuleRef.getDocumentShareData();
-                workspaceState.documents = docData.docs;
-                workspaceState.currentActiveDocumentId = docData.activeId;
+                appStateDep.documents = docData.docs;
+                appStateDep.currentActiveDocumentId = docData.activeId;
             }
         },
         handleDeleteDocument: (data, peerId) => {
             documentModuleRef.handleDeleteDocument(data, peerId);
             if (documentModuleRef) {
                 const docData = documentModuleRef.getDocumentShareData();
-                workspaceState.documents = docData.docs;
-                workspaceState.currentActiveDocumentId = docData.activeId;
+                appStateDep.documents = docData.docs;
+                appStateDep.currentActiveDocumentId = docData.activeId;
             }
         },
         handleDocumentContentUpdate: (data, peerId) => {
             documentModuleRef.handleDocumentContentUpdate(data, peerId);
             if (documentModuleRef) {
                 const docData = documentModuleRef.getDocumentShareData();
-                workspaceState.documents = docData.docs;
-                workspaceState.currentActiveDocumentId = docData.activeId;
+                appStateDep.documents = docData.docs;
+                appStateDep.currentActiveDocumentId = docData.activeId;
             }
         },
 
@@ -436,7 +436,7 @@ function initChat() {
 
 // NEW: Function to start a reply to a specific message
 function startReplyToMessage(msgId) {
-    const parentMessage = workspaceState.chatHistory.find(m => m.msgId === msgId);
+    const parentMessage = appStateDep.chatHistory.find(m => m.msgId === msgId);
     if (!parentMessage) return;
 
     currentReplyParentId = msgId;
@@ -495,7 +495,7 @@ export function hideEmojiPicker() {
 }
 
 function _createAndBroadcastChannel(channelName, isDefault = false) {
-    if (!channelName || !channelName.trim()) return null;
+    if (!channelName || !channelName.trim()) return;
 
     let userProvidedName = channelName.trim();
     if (userProvidedName.startsWith('#')) {
@@ -503,8 +503,8 @@ function _createAndBroadcastChannel(channelName, isDefault = false) {
     }
 
     if (userProvidedName.length > 16) {
-        if(logStatusDep && !isDefault) logStatusDep(`Channel name "${userProvidedName}" is too long. Maximum 16 characters.`, true);
-        return null;
+        logStatusDep('Channel name max 16 chars.', true);
+        return;
     }
     
     let saneChannelName = channelName.trim();
@@ -513,24 +513,24 @@ function _createAndBroadcastChannel(channelName, isDefault = false) {
     }
     saneChannelName = saneChannelName.replace(/\s+/g, '-').toLowerCase(); 
 
-    if (workspaceState.channels.find(ch => ch.name === saneChannelName)) {
-        if(logStatusDep && !isDefault) {
-            const wasIntentionalCreation = newChannelNameInput && newChannelNameInput.value.trim().toLowerCase().includes(userProvidedName.toLowerCase());
-            if (wasIntentionalCreation) {
-                 logStatusDep(`Channel "${saneChannelName}" already exists.`, true);
-            }
+    if (appStateDep.channels.find(ch => ch.name === saneChannelName)) {
+        logStatusDep(`Channel "${saneChannelName}" already exists.`);
+        // If the channel exists, just switch to it.
+        const existingChannel = appStateDep.channels.find(ch => ch.name === saneChannelName);
+        if (existingChannel) {
+            setActiveChannel(existingChannel.id);
         }
-        return workspaceState.channels.find(ch => ch.name === saneChannelName);
+        return;
     }
 
     const newChannel = { id: `ch-${Date.now()}-${Math.random().toString(36).substring(2,5)}`, name: saneChannelName };
-    workspaceState.channels.push(newChannel);
+    appStateDep.channels.push(newChannel);
     
     if (sendCreateChannelDep) {
-        sendCreateChannelDep(newChannel); 
+        sendCreateChannelDep(newChannel);
     }
-    if (isDefault || workspaceState.channels.length === 1) { 
-        setActiveChannel(newChannel.id, false);
+    if (isDefault || appStateDep.channels.length === 1) {
+        appStateDep.currentActiveChannelId = newChannel.id;
     }
     renderChannelList();
     return newChannel;
@@ -543,7 +543,7 @@ function handleAddChannelUI() {
     const createdChannel = _createAndBroadcastChannel(channelName);
     if (createdChannel) {
         newChannelNameInput.value = '';
-        if(logStatusDep && !workspaceState.channels.find(ch => ch.id === createdChannel.id && ch.name === createdChannel.name && workspaceState.channels.indexOf(ch) < workspaceState.channels.length -1 )) {
+        if(logStatusDep && !appStateDep.channels.find(ch => ch.id === createdChannel.id && ch.name === createdChannel.name && appStateDep.channels.indexOf(ch) < appStateDep.channels.length -1 )) {
             logStatusDep(`Channel "${createdChannel.name}" created.`);
         }
     }
@@ -552,43 +552,40 @@ function handleAddChannelUI() {
 function renderChannelList() {
     if (!channelListDiv) return;
     channelListDiv.innerHTML = '';
-    workspaceState.channels.forEach(channel => {
-        const channelItem = document.createElement('div');
-        channelItem.classList.add('channel-list-item');
-        channelItem.textContent = channel.name;
-        channelItem.dataset.channelId = channel.id;
-        if (channel.id === workspaceState.currentActiveChannelId) {
-            channelItem.classList.add('active');
+    appStateDep.channels.forEach(channel => {
+        const channelDiv = document.createElement('div');
+        channelDiv.className = 'channel-item';
+        channelDiv.textContent = channel.name;
+        channelDiv.dataset.channelId = channel.id;
+        if (channel.id === appStateDep.currentActiveChannelId) {
+            channelDiv.classList.add('active');
         }
-        channelItem.addEventListener('click', () => setActiveChannel(channel.id));
-
-        const notifDot = document.createElement('span');
-        notifDot.classList.add('channel-notification-dot', 'hidden'); 
-        channelItem.appendChild(notifDot);
-
-        channelListDiv.appendChild(channelItem);
+        if (channel.hasNotification) {
+            channelDiv.classList.add('has-notification');
+        }
+        channelDiv.addEventListener('click', () => setActiveChannel(channel.id));
+        channelListDiv.appendChild(channelDiv);
     });
 }
 
 function setActiveChannel(channelId, clearNotifications = true) {
-    if (workspaceState.currentActiveChannelId === channelId && !clearNotifications) {
-        renderChannelList(); 
-        return;
+    if (appStateDep.currentActiveChannelId === channelId && !clearNotifications) {
+        return; // Already active, and we are not trying to clear notifications
     }
-    workspaceState.currentActiveChannelId = channelId;
+    appStateDep.currentActiveChannelId = channelId;
     cancelReply(); // NEW: Cancel reply when switching channels
     renderChannelList(); 
     displayChatForCurrentChannel();
 
-    if (clearNotifications && channelListDiv) { 
-        const channelDot = channelListDiv.querySelector(`.channel-list-item[data-channel-id="${channelId}"] .channel-notification-dot`);
-        if (channelDot) {
-            channelDot.classList.add('hidden');
-        }
+    if (clearNotifications && channelListDiv) {
+        const channel = appStateDep.channels.find(c => c.id === channelId);
+        if (channel) channel.hasNotification = false;
+        const channelDiv = channelListDiv.querySelector(`.channel-item[data-channel-id="${channelId}"]`);
+        if (channelDiv) channelDiv.classList.remove('has-notification');
     }
-    if(messageInput) { 
-        const activeChannel = workspaceState.channels.find(c=>c.id === channelId);
-        messageInput.placeholder = `Message ${activeChannel?.name || (currentRoomIdDep || '')}`;
+    if(messageInput) {
+        updateChatMessageInputPlaceholder();
+        messageInput.focus();
     }
 }
 
@@ -596,29 +593,32 @@ function setActiveChannel(channelId, clearNotifications = true) {
 function displayChatForCurrentChannel() {
     if (!chatArea) return;
     chatArea.innerHTML = '';
+    if (!appStateDep || !appStateDep.currentActiveChannelId) {
+        chatArea.innerHTML = '<div class="system-message">Select a channel to start chatting.</div>';
+        return;
+    }
 
-    const messagesForChannel = workspaceState.chatHistory.filter(msg => 
-        (msg.channelId === workspaceState.currentActiveChannelId) || // Messages in the channel
-        (msg.isSystem && !msg.pmInfo) // System messages that aren't PM confirmations
-    );
+    const messagesForChannel = appStateDep.chatHistory.filter(msg => msg.channelId === appStateDep.currentActiveChannelId);
 
-    const messagesById = new Map(messagesForChannel.map(msg => [msg.msgId, msg]));
+    // NEW: Organize messages for threading
+    const messagesById = new Map();
     const childrenByParentId = new Map();
 
     messagesForChannel.forEach(msg => {
-        if (msg.parentId && messagesById.has(msg.parentId)) {
-            const parentId = msg.parentId;
-            if (!childrenByParentId.has(parentId)) {
-                childrenByParentId.set(parentId, []);
+        messagesById.set(msg.msgId, msg);
+        if (msg.parentId) {
+            if (!childrenByParentId.has(msg.parentId)) {
+                childrenByParentId.set(msg.parentId, []);
             }
-            childrenByParentId.get(parentId).push(msg);
+            childrenByParentId.get(msg.parentId).push(msg.msgId);
         }
     });
 
-    const topLevelMessages = messagesForChannel.filter(msg => !msg.parentId || !messagesById.has(msg.parentId));
-    
-    topLevelMessages.forEach(msg => {
-        renderMessageAndThread(msg, 0, messagesById, childrenByParentId, chatArea);
+    // Render top-level messages
+    messagesForChannel.forEach(msg => {
+        if (!msg.parentId) {
+            renderMessageAndThread(msg, 0, messagesById, childrenByParentId, chatArea);
+        }
     });
 
     chatArea.scrollTop = chatArea.scrollHeight;
@@ -767,29 +767,27 @@ function displayMessage(msgObject, isSelf = false, isSystem = false, container, 
 
 // MODIFIED: Add a message to history and re-render the chat
 function addMessageToHistoryAndDisplay(msgData, isSelf = false, isSystem = false) {
-    let channelIdForMsg = msgData.channelId;
+    if (!msgData.channelId) {
+        console.warn("Message without channelId, defaulting to current. Message:", msgData);
+        msgData.channelId = appStateDep.currentActiveChannelId;
+    }
     
-    if (isSelf && !isSystem && !msgData.pmInfo && !msgData.fileMeta) {
-        channelIdForMsg = workspaceState.currentActiveChannelId;
+    // Avoid duplicates
+    if (appStateDep.chatHistory.some(m => m.msgId === msgData.msgId)) {
+        return;
     }
 
-    const fullMsgObject = {
-        ...msgData,
-        msgId: msgData.msgId || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, // Ensure msgId
-        channelId: (msgData.isSystem || msgData.pmInfo) ? null : channelIdForMsg, 
-        timestamp: msgData.timestamp || Date.now(),
-        senderPeerId: isSelf ? localGeneratedPeerIdDep : msgData.senderPeerId,
-        isSystem: isSystem
-    };
-    
-    if (!workspaceState.chatHistory.some(m => m.msgId === fullMsgObject.msgId)) {
-        workspaceState.chatHistory.push(fullMsgObject);
-    }
-    
-    if (fullMsgObject.pmInfo) { // PMs are not threaded and displayed in a flat list in a separate view/context
-        displaySystemMessage(`Private message with ${fullMsgObject.pmInfo.recipient || fullMsgObject.pmInfo.sender} not displayed in channel.`);
-    } else if (fullMsgObject.channelId === workspaceState.currentActiveChannelId) {
+    appStateDep.chatHistory.push(msgData);
+
+    if (msgData.channelId === appStateDep.currentActiveChannelId) {
         displayChatForCurrentChannel();
+    } else {
+        const channel = appStateDep.channels.find(c => c.id === msgData.channelId);
+        if (channel) {
+            channel.hasNotification = true;
+            renderChannelList();
+        }
+        showNotificationDep('chatSection');
     }
 }
 
@@ -820,7 +818,7 @@ function handleSendMessage() {
             displaySystemMessage(`User "${targetNickname}" not found or PM failed.`);
         }
     } else { 
-        if (!workspaceState.currentActiveChannelId) {
+        if (!appStateDep.currentActiveChannelId) {
             displaySystemMessage("Please select a channel to send a message.");
             return;
         }
@@ -828,7 +826,7 @@ function handleSendMessage() {
             message: messageText, 
             timestamp, 
             msgId,
-            channelId: workspaceState.currentActiveChannelId,
+            channelId: appStateDep.currentActiveChannelId,
             parentId: currentReplyParentId // Add parentId if it exists
         };
         sendChatMessageDep(msgData);
@@ -862,7 +860,7 @@ async function handleChatFileSelected(event) {
         fileMeta: { ...fileMeta, receiving: true, blobUrl: URL.createObjectURL(file) },
         timestamp: Date.now(),
         msgId: msgId,
-        channelId: workspaceState.currentActiveChannelId,
+        channelId: appStateDep.currentActiveChannelId,
         parentId: currentReplyParentId
     };
 
@@ -872,7 +870,7 @@ async function handleChatFileSelected(event) {
     sendFileMetaDep({
         ...fileMeta,
         msgId: msgId,
-        channelId: workspaceState.currentActiveChannelId,
+        channelId: appStateDep.currentActiveChannelId,
         parentId: currentReplyParentId
     });
 
@@ -901,7 +899,7 @@ async function handleChatFileSelected(event) {
             readNextChunk();
         } else {
             if(logStatusDep) logStatusDep(`File ${file.name} sent.`);
-            const localMsgEntry = workspaceState.chatHistory.find(m => m.msgId === msgId);
+            const localMsgEntry = appStateDep.chatHistory.find(m => m.msgId === msgId);
             if (localMsgEntry && localMsgEntry.fileMeta) {
                 delete localMsgEntry.fileMeta.receiving; 
                 if (progressElem) progressElem.textContent = ` (Sent 100%)`;
@@ -925,22 +923,11 @@ async function handleChatFileSelected(event) {
 }
 
 export function handleChatMessage(msgData, peerId) {
-    const senderNickname = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : `Peer ${peerId.substring(0, 6)}`;
-    const fullMsgObject = { ...msgData, senderNickname, senderPeerId: peerId, timestamp: msgData.timestamp || Date.now() };
-    
-    if (!workspaceState.chatHistory.some(m => m.msgId === fullMsgObject.msgId)) {
-        workspaceState.chatHistory.push(fullMsgObject);
+    // Basic validation
+    if (!msgData || typeof msgData.message !== 'string' || typeof msgData.nickname !== 'string') {
+        return;
     }
-     
-    if (fullMsgObject.channelId === workspaceState.currentActiveChannelId) {
-        displayChatForCurrentChannel(); // Re-render to place the new message correctly in its thread
-    } else if (fullMsgObject.channelId && channelListDiv) {
-        const channelDot = channelListDiv.querySelector(`.channel-list-item[data-channel-id="${fullMsgObject.channelId}"] .channel-notification-dot`);
-        if (channelDot) {
-            channelDot.classList.remove('hidden');
-        }
-    }
-    if (peerId !== localGeneratedPeerIdDep && showNotificationDep) showNotificationDep('chatSection');
+    addMessageToHistoryAndDisplay(msgData, false);
 }
 export function handlePrivateMessage(pmData, senderPeerId) {
     const sender = (getPeerNicknamesDep && getPeerNicknamesDep()[senderPeerId]) ? getPeerNicknamesDep()[senderPeerId] : `Peer ${senderPeerId.substring(0, 6)}`;
@@ -949,30 +936,28 @@ export function handlePrivateMessage(pmData, senderPeerId) {
     if (senderPeerId !== localGeneratedPeerIdDep && showNotificationDep) showNotificationDep('chatSection'); 
 }
 export function handleFileMeta(meta, peerId) {
-    const senderNickname = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : `Peer ${peerId.substring(0, 6)}`;
-    const bufferKey = `${peerId}_${meta.id}`;
-    incomingFileBuffers.set(bufferKey, { meta, chunks: [], receivedBytes: 0 });
-    
-    const msgData = {
-        senderNickname,
-        fileMeta: { ...meta, receiving: true },
-        senderPeerId: peerId,
-        timestamp: Date.now(),
-        msgId: meta.msgId,
-        channelId: meta.channelId,
-        parentId: meta.parentId
+    const fileTransferId = meta.fileTransferId;
+    incomingFileBuffers.set(fileTransferId, {
+        meta: meta,
+        chunks: [],
+        receivedBytes: 0,
+        peerId: peerId
+    });
+
+    // Add a placeholder message to the chat
+    const msgId = meta.msgId || `${peerId}-${meta.timestamp}`;
+    const placeholderMsg = {
+        ...meta,
+        msgId: msgId,
+        senderId: peerId,
+        nickname: meta.nickname,
+        timestamp: meta.timestamp,
+        isHost: meta.isHost,
+        channelId: meta.channelId || appStateDep.currentActiveChannelId,
+        fileMeta: meta,
+        isDownloading: true,
     };
-
-    if (!workspaceState.chatHistory.some(m => m.msgId === msgData.msgId)) {
-        workspaceState.chatHistory.push(msgData);
-    }
-
-    if (msgData.channelId === workspaceState.currentActiveChannelId) {
-        displayChatForCurrentChannel();
-    }
-
-    if(logStatusDep) logStatusDep(`${senderNickname} is sending file: ${meta.name}`);
-    if (peerId !== localGeneratedPeerIdDep && showNotificationDep) showNotificationDep('chatSection');
+    addMessageToHistoryAndDisplay(placeholderMsg, false);
 }
 export function handleFileChunk(chunk, peerId, chunkMeta) {
     const senderNickname = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : `Peer ${peerId.substring(0, 6)}`;
@@ -982,56 +967,60 @@ export function handleFileChunk(chunk, peerId, chunkMeta) {
     if (fileBuffer) {
         fileBuffer.chunks.push(chunk);
         fileBuffer.receivedBytes += chunk.byteLength;
-        const progress = Math.round((fileBuffer.receivedBytes / fileBuffer.meta.size) * 100);
 
-        const safeSenderNickname = senderNickname.replace(/\W/g, '');
-        const safeFileName = fileBuffer.meta.name.replace(/\W/g, '');
-        const progressId = `file-progress-${safeSenderNickname}-${safeFileName}`;
-        const progressElem = document.getElementById(progressId);
-        if (progressElem) progressElem.textContent = ` (Receiving ${progress}%)`;
-
-        if (chunkMeta.final || fileBuffer.receivedBytes >= fileBuffer.meta.size) {
-            const completeFile = new Blob(fileBuffer.chunks, { type: fileBuffer.meta.type });
-            const blobUrl = URL.createObjectURL(completeFile);
-
-            const msgToUpdate = workspaceState.chatHistory.find(msg => 
-                msg.msgId === fileBuffer.meta.msgId
-            );
-            if (msgToUpdate && msgToUpdate.fileMeta) {
-                msgToUpdate.fileMeta.blobUrl = blobUrl;
-                delete msgToUpdate.fileMeta.receiving;
-            }
-
-            if (chatArea && msgToUpdate.channelId === workspaceState.currentActiveChannelId) {
+        // Update the UI with progress
+        const msgIndex = appStateDep.chatHistory.findIndex(m => m.msgId === fileBuffer.meta.msgId);
+        if (msgIndex !== -1) {
+            const progress = (fileBuffer.receivedBytes / fileBuffer.meta.size) * 100;
+            appStateDep.chatHistory[msgIndex].downloadProgress = progress;
+            
+            // This direct mutation won't trigger Lightview's reactivity for nested objects.
+            // A more robust way is to re-assign or use a method that signals a change.
+            // For simplicity here, we'll just re-render the whole chat.
+            if (appStateDep.chatHistory[msgIndex].channelId === appStateDep.currentActiveChannelId) {
                 displayChatForCurrentChannel();
             }
-            if(logStatusDep) logStatusDep(`File ${fileBuffer.meta.name} from ${senderNickname} received.`);
-            incomingFileBuffers.delete(bufferKey);
+        }
+
+        if (fileBuffer.receivedBytes === fileBuffer.meta.size) {
+            const fileBlob = new Blob(fileBuffer.chunks, { type: fileBuffer.meta.type });
+            const fileUrl = URL.createObjectURL(fileBlob);
+            
+            const finalMsgIndex = appStateDep.chatHistory.findIndex(m => m.msgId === fileBuffer.meta.msgId);
+            if (finalMsgIndex !== -1) {
+                appStateDep.chatHistory[finalMsgIndex].isDownloading = false;
+                appStateDep.chatHistory[finalMsgIndex].downloadProgress = 100;
+                appStateDep.chatHistory[finalMsgIndex].fileUrl = fileUrl;
+                
+                if (appStateDep.chatHistory[finalMsgIndex].channelId === appStateDep.currentActiveChannelId) {
+                    displayChatForCurrentChannel();
+                }
+            }
+            incomingFileBuffers.delete(chunkMeta.fileTransferId);
         }
     } else {
         console.warn(`Received chunk for unknown file: ${chunkMeta.fileName} from ${senderNickname}`);
     }
 }
 export function handleChatHistory(history, peerId) {
-    if (getIsHostDep && !getIsHostDep()) {
-        workspaceState.chatHistory.splice(0, workspaceState.chatHistory.length, ...history);
-        workspaceState.chatHistory.forEach(msg => {
-            if (!msg.msgId) { // Backwards compatibility for old chat histories
-                msg.msgId = `msg-${msg.timestamp || Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-            }
-            if (msg.isSystem === undefined && (msg.message?.includes("joined") || msg.message?.includes("left") || msg.message?.startsWith("Error:") || msg.message?.includes("now known as") || msg.message?.includes("You joined workspace:") )) {
-                msg.isSystem = true;
-            }
-        });
-        if (workspaceState.currentActiveChannelId) {
-            displayChatForCurrentChannel();
+    if (getIsHostDep()) return; // Hosts don't accept history, they send it.
+    console.log(`Received chat history from ${peerId.substring(0,6)}...`);
+    
+    // A simple merge strategy: add messages we don't have.
+    history.forEach(msg => {
+        if (!appStateDep.chatHistory.some(m => m.msgId === msg.msgId)) {
+            appStateDep.chatHistory.push(msg);
         }
-        if(logStatusDep) logStatusDep(`Received chat history from ${(getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : 'host'}.`);
-    }
+    });
+
+    // Sort by timestamp to be sure
+    appStateDep.chatHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    displayChatForCurrentChannel();
 }
 export function updateChatMessageInputPlaceholder() {
     if(messageInput) {
-        const activeChannel = workspaceState.channels.find(c => c.id === workspaceState.currentActiveChannelId);
+        const activeChannel = appStateDep.channels.find(c => c.id === appStateDep.currentActiveChannelId);
         messageInput.placeholder = `Message ${activeChannel?.name || (currentRoomIdDep || 'current channel')}`;
     }
 }
@@ -1043,126 +1032,105 @@ export function primePrivateMessage(nickname) {
 }
 
 export function handleCreateChannel(newChannelData, peerId) {
-    if (!workspaceState.channels.find(ch => ch.id === newChannelData.id)) {
-        workspaceState.channels.push(newChannelData);
+    if (!newChannelData || !newChannelData.id || !newChannelData.name) return;
+
+    if (!appStateDep.channels.find(ch => ch.id === newChannelData.id)) {
+        appStateDep.channels.push(newChannelData);
         renderChannelList();
-        if (peerId !== localGeneratedPeerIdDep && logStatusDep) {
-            const senderName = (getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : 'another user';
-            logStatusDep(`Channel "${newChannelData.name}" created by ${senderName}.`);
-        }
-        if (!workspaceState.currentActiveChannelId && workspaceState.channels.length === 1) {
-            setActiveChannel(newChannelData.id, false);
-        }
+        logStatusDep(`Channel "${newChannelData.name}" was created by ${getPeerNicknamesDep()[peerId] || 'a peer'}.`);
     }
 }
 
 export function handleInitialChannels(receivedChannels, peerId) {
-    if (getIsHostDep && !getIsHostDep()) {
-        workspaceState.channels.splice(0, workspaceState.channels.length, ...(receivedChannels || []));
-        
-        const generalChannelExists = workspaceState.channels.some(ch => ch.name === "#general");
-        if (!generalChannelExists) {
-             _createAndBroadcastChannel("#general", workspaceState.channels.length === 0);
-        }
+    if (getIsHostDep()) return;
+    console.log(`Received initial channels from host.`);
+    
+    // Simple overwrite, assuming host is the source of truth.
+    appStateDep.channels = receivedChannels.channels;
+    appStateDep.currentActiveChannelId = receivedChannels.activeId;
 
-        if (workspaceState.channels.length > 0 && (!workspaceState.currentActiveChannelId || !workspaceState.channels.find(c => c.id === workspaceState.currentActiveChannelId))) {
-            workspaceState.currentActiveChannelId = workspaceState.channels[0].id;
-        }
-        
-        renderChannelList();
-        if (workspaceState.chatHistory.length > 0) {
-             displayChatForCurrentChannel();
-        }
-        if(logStatusDep) logStatusDep(`Received channel list from ${(getPeerNicknamesDep && getPeerNicknamesDep()[peerId]) ? getPeerNicknamesDep()[peerId] : 'host'}.`);
-    }
+    renderChannelList();
+    displayChatForCurrentChannel();
 }
 
 export function getShareableData() {
-    if (documentModuleRef) documentModuleRef.getDocumentShareData();
-
-    return { 
-        chatHistory: workspaceState.chatHistory, 
-        channels: workspaceState.channels, 
-        currentActiveChannelIdForImport: workspaceState.currentActiveChannelId,
-        whiteboardHistory: whiteboardModuleRef ? whiteboardModuleRef.getWhiteboardHistory() : [], 
-        kanbanData: kanbanModuleRef ? kanbanModuleRef.getKanbanData() : { columns: [] }, 
-        documents: documentModuleRef ? documentModuleRef.getDocumentShareData().docs : [], 
-        currentActiveDocumentId: documentModuleRef ? documentModuleRef.getDocumentShareData().activeId : null,
+    if (!appStateDep) return {};
+    return {
+        chatHistory: appStateDep.chatHistory,
+        channels: appStateDep.channels,
+        currentActiveChannelId: appStateDep.currentActiveChannelId,
+        kanbanData: kanbanModuleRef.getShareableData(),
+        whiteboardHistory: whiteboardModuleRef.getShareableData(),
+        documents: documentModuleRef.getShareableData(),
     };
 }
-export function loadShareableData(data) { 
-    workspaceState.chatHistory.splice(0, workspaceState.chatHistory.length, ...(data.chatHistory || []));
-    workspaceState.chatHistory.forEach(msg => {
-        if (!msg.msgId) {
-            msg.msgId = `msg-${msg.timestamp || Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        }
-        if (msg.isSystem === undefined && (msg.message?.includes("joined") || msg.message?.includes("left") || msg.message?.startsWith("Error:") || msg.message?.includes("now known as") || msg.message?.includes("You joined workspace:") )) {
-            msg.isSystem = true;
-        }
-    });
+export function loadShareableData(data) {
+    if (!appStateDep) return;
 
-    workspaceState.channels.splice(0, workspaceState.channels.length, ...(data.channels || []));
-    workspaceState.currentActiveChannelId = data.currentActiveChannelIdForImport || (workspaceState.channels.length > 0 ? workspaceState.channels[0].id : null);
+    // Use imported data if available
+    appStateDep.chatHistory = data.chatHistory || [];
+    appStateDep.channels = data.channels || [];
+    appStateDep.currentActiveChannelId = data.currentActiveChannelId || null;
 
-    if (whiteboardModuleRef) whiteboardModuleRef.loadWhiteboardData(data.whiteboardHistory || []);
-    if (kanbanModuleRef) kanbanModuleRef.loadKanbanData(data.kanbanData || { columns: [] });
-    if (documentModuleRef) documentModuleRef.loadDocumentData(data.documents || [], data.currentActiveDocumentId);
-   
+    // If no channels, create a default one
+    if (getIsHostDep() && appStateDep.channels.length === 0) {
+        const general = _createAndBroadcastChannel('#general', true);
+        appStateDep.currentActiveChannelId = general.id;
+    } else if (!appStateDep.currentActiveChannelId && appStateDep.channels.length > 0) {
+        appStateDep.currentActiveChannelId = appStateDep.channels[0].id;
+    }
+
+    kanbanModuleRef.loadShareableData(data.kanbanData || { columns: [] });
+    whiteboardModuleRef.loadShareableData(data.whiteboardHistory || []);
+    documentModuleRef.loadShareableData(data.documents || {});
+
     renderChannelList();
     displayChatForCurrentChannel();
-   
 }
-function loadChatHistoryFromImport(importedHistory) { 
-    workspaceState.chatHistory.push(...(importedHistory || [])); 
-    workspaceState.chatHistory.forEach(msg => {
-        if (!msg.msgId) {
-            msg.msgId = `msg-${msg.timestamp || Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        }
-        if (msg.isSystem === undefined && (msg.message?.includes("joined") || msg.message?.includes("left") || msg.message?.startsWith("Error:") || msg.message?.includes("now known as") || msg.message?.includes("You joined workspace:") )) {
-            msg.isSystem = true;
-        }
-    });
+function loadChatHistoryFromImport(importedHistory) {
+    // This function is now effectively merged into loadShareableData
+    if (Array.isArray(importedHistory)) {
+        appStateDep.chatHistory = importedHistory;
+        displayChatForCurrentChannel();
+    }
 }
 
 
 export function sendFullStateToPeer(peerId) {
     if (getIsHostDep && getIsHostDep()) {
       
-        if (sendInitialChannelsDep) sendInitialChannelsDep(workspaceState.channels, peerId);
-        if (sendChatHistoryDep && workspaceState.chatHistory.length > 0) sendChatHistoryDep(workspaceState.chatHistory, peerId);
-        if (whiteboardModuleRef) whiteboardModuleRef.sendInitialWhiteboardStateToPeer(peerId, getIsHostDep);
-        if (kanbanModuleRef) kanbanModuleRef.sendInitialKanbanStateToPeer(peerId, getIsHostDep);
+        if (sendInitialChannelsDep) sendInitialChannelsDep(appStateDep.channels, peerId);
+        if (sendChatHistoryDep) sendChatHistoryDep(appStateDep.chatHistory, peerId);
+        if (sendInitialChannelsDep) sendInitialChannelsDep({
+            channels: appStateDep.channels,
+            activeId: appStateDep.currentActiveChannelId
+        }, peerId);
+        if (whiteboardModuleRef) whiteboardModuleRef.sendFullWhiteboardToPeer(peerId);
+        if (kanbanModuleRef) kanbanModuleRef.sendFullKanbanToPeer(peerId);
         if (documentModuleRef) documentModuleRef.sendInitialDocumentsStateToPeer(peerId, getIsHostDep);
     }
 }
 
 export function displaySystemMessage(message) {
-    const msgData = { 
-        message, 
-        timestamp: Date.now(), 
-        isSystem: true,
-        channelId: workspaceState.currentActiveChannelId, // Show system message in the current channel
-        msgId: `msg-sys-${Date.now()}`
+    const systemMsg = {
+        msgId: `system-${Date.now()}`,
+        message: message,
+        timestamp: new Date().toISOString(),
+        channelId: appStateDep.currentActiveChannelId,
     };
-    addMessageToHistoryAndDisplay(msgData, false, true);
+    addMessageToHistoryAndDisplay(systemMsg, false, true);
 }
 
 export function resetShareModuleStates(isCreatingHost = false) {
-    if (workspaceState) {
-        workspaceState.chatHistory.length = 0;
-        workspaceState.channels.length = 0;
-        workspaceState.currentActiveChannelId = null;
-    }
+    // This function's purpose changes. It now just resets the UI components it manages.
+    // The actual state is reset in main.js by setting appState.workspace to null.
     if (chatArea) chatArea.innerHTML = '';
-    if (messageInput) messageInput.value = '';
+    if (channelListDiv) channelListDiv.innerHTML = '';
+    cancelReply();
     incomingFileBuffers.clear();
-
-    cancelReply(); // NEW: Reset reply state
-    if(channelListDiv) channelListDiv.innerHTML = '';
-    if(newChannelNameInput) newChannelNameInput.value = '';
-
-    if (whiteboardModuleRef) whiteboardModuleRef.resetWhiteboardState();
-    if (kanbanModuleRef) kanbanModuleRef.resetKanbanState();
-    if (documentModuleRef) documentModuleRef.resetDocumentState();
     
+    // Reset sub-modules
+    if (kanbanModuleRef) kanbanModuleRef.resetKanbanState();
+    if (whiteboardModuleRef) whiteboardModuleRef.resetWhiteboardState();
+    if (documentModuleRef) documentModuleRef.resetDocumentState();
 }

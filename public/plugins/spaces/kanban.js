@@ -45,8 +45,8 @@ export function initKanbanFeatures(dependencies) {
         handleKanbanUpdate,
         handleInitialKanban,
         renderKanbanBoardIfActive,
-        getKanbanData,
-        loadKanbanData,
+        getShareableData,
+        loadShareableData,
         resetKanbanState,
         sendInitialKanbanStateToPeer
     };
@@ -375,11 +375,11 @@ export function handleInitialKanban(initialData, peerId, getIsHost, localGenerat
     }
 }
 
-export function getKanbanData() {
+export function getShareableData() {
     return kanbanData;
 }
 
-export function loadKanbanData(importedData) {
+export function loadShareableData(importedData) {
     kanbanData = importedData || { columns: [] };
     if (kanbanData && kanbanData.columns) {
         kanbanData.columns.forEach(column => {

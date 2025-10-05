@@ -13,13 +13,14 @@ import { initMediaFeatures, handleMediaPeerStream, stopAllLocalMedia, setupMedia
 
 const APP_ID = 'Spaces-0.1.5-jun21';
 
-function saveSpaceToLocalStorage() {
-    if (!window.currentRoomId) return;
-    console.log('Saving space to localStorage for room:', window.currentRoomId);
+function saveSpaceToLocalStorage(appState) {
+    if (!appState.workspace) return;
+    const roomId = appState.workspace.roomId;
+    console.log('Saving space to localStorage for room:', roomId);
     try {
         const shareData = getShareableData();
-        const workspaceState = { ...shareData, roomId: window.currentRoomId, version: APP_ID };
-        localStorage.setItem('space_' + window.currentRoomId, JSON.stringify(workspaceState));
+        const workspaceState = { ...shareData, roomId: roomId, version: APP_ID };
+        localStorage.setItem('space_' + roomId, JSON.stringify(workspaceState));
         console.log('Space saved successfully.');
     } catch (e) {
         console.error('Error saving space to localStorage:', e);
@@ -27,41 +28,19 @@ function saveSpaceToLocalStorage() {
 }
 
 // Expose functions and variables on window for index.js
-window.isHost = false;
-window.currentRoomId = '';
-window.localNickname = '';
+// REMOVED: Global state variables
+// window.isHost = false;
+// window.currentRoomId = '';
+// window.localNickname = '';
 window.logStatus = logStatus;
 window.cycleTheme = cycleTheme;
 window.handlePttKeyCapture = handlePttKeyCapture;
 window.isCapturingPttKey = false;
 
 window.onClickSettingsSave = async () => {
-    const newNickname = settingsNicknameInput.value.trim();
-    if (newNickname && newNickname !== localNickname) {
-        localNickname = newNickname;
-        localStorage.setItem('viewPartyNickname', localNickname);
-        if(currentNicknameSpan) currentNicknameSpan.textContent = escapeHtml(localNickname);
-        updateUserList();
-        if (roomApi && sendNickname) {
-            await sendNickname({ nickname: localNickname, initialJoin: false, isHost: isHost });
-        }
-         if (window.mediaModuleRef && window.mediaModuleRef.updatePeerNicknameInUI) {
-            window.mediaModuleRef.updatePeerNicknameInUI(localGeneratedPeerId, localNickname);
-        }
-    }
-    spacesSettings.videoFlip = settingsVideoFlipCheckbox.checked;
-    spacesSettings.pttEnabled = settingsPttEnabledCheckbox.checked;
-    const newGlobalVolume = parseFloat(settingsGlobalVolumeSlider.value);
-    if (spacesSettings.globalVolume !== newGlobalVolume) {
-        spacesSettings.globalVolume = newGlobalVolume;
-    }
-    saveSettings();
-    if (window.mediaModuleRef) {
-        if (window.mediaModuleRef.setLocalVideoFlip) window.mediaModuleRef.setLocalVideoFlip(spacesSettings.videoFlip);
-        if (window.mediaModuleRef.updatePttSettings) window.mediaModuleRef.updatePttSettings(spacesSettings.pttEnabled, spacesSettings.pttKey, spacesSettings.pttKeyDisplay);
-        if (window.mediaModuleRef.setGlobalVolume) window.mediaModuleRef.setGlobalVolume(spacesSettings.globalVolume, true);
-    }
-    logStatus("Settings saved.");
+    // This function will need to be updated to use appState if it's to remain active.
+    // For now, assuming it might be deprecated in favor of direct state binding.
+    console.warn("onClickSettingsSave needs refactoring for Lightview state.");
 };
 
 window.onClickSidebarButton = (button) => {
@@ -433,56 +412,10 @@ function generateMemorableRoomCode() {
     return selectedWords.join('-');
 }
 function updateUserList() {
+    // This function will be replaced by a reactive component in index.html
+    // bound to appState.workspace.peers and appState.workspace.nickname
     if (!userListUl) return;
-    const fragment = document.createDocumentFragment();
-    let count = 0;
-    const selfLi = document.createElement('li');
-    const selfBadge = document.createElement('span');
-    selfBadge.className = 'status-badge';
-    selfLi.appendChild(selfBadge);
-    selfLi.appendChild(document.createTextNode(` ${escapeHtml(window.localNickname)} (You)${window.isHost ? ' (Host)' : ''}`));
-    fragment.appendChild(selfLi);
-    count++;
-    for (const peerId in peerNicknames) {
-        const nickname = peerNicknames[peerId];
-        const li = document.createElement('li');
-        li.classList.add('peer-name-container');
-        li.dataset.peerId = peerId;
-        const nameAndPmContainer = document.createElement('div');
-        nameAndPmContainer.className = 'peer-info-clickable';
-        const peerBadge = document.createElement('span');
-        peerBadge.className = 'status-badge';
-        nameAndPmContainer.appendChild(peerBadge);
-        nameAndPmContainer.appendChild(document.createTextNode(` ${escapeHtml(nickname)}`));
-        nameAndPmContainer.title = `Click to private message ${escapeHtml(nickname)}`;
-        nameAndPmContainer.addEventListener('click', () => {
-            if (window.shareModuleRef && window.shareModuleRef.primePrivateMessage) window.shareModuleRef.primePrivateMessage(nickname);
-        });
-        li.appendChild(nameAndPmContainer);
-        const volumeControlContainer = document.createElement('div');
-        volumeControlContainer.className = 'peer-volume-control';
-        const volumeIcon = document.createElement('span');
-        volumeIcon.textContent = '🔊';
-        volumeIcon.className = 'volume-icon';
-        volumeControlContainer.appendChild(volumeIcon);
-        const slider = document.createElement('input');
-        slider.type = 'range'; slider.min = '0'; slider.max = '1'; slider.step = '0.01';
-        let currentIndividualVolume = 1;
-        if (window.mediaModuleRef && window.mediaModuleRef.getIndividualVolume) currentIndividualVolume = window.mediaModuleRef.getIndividualVolume(peerId);
-        slider.value = currentIndividualVolume.toString();
-        slider.className = 'peer-volume-slider';
-        slider.title = `Volume for ${escapeHtml(nickname)}`;
-        slider.addEventListener('input', (e) => {
-            if (window.mediaModuleRef && window.mediaModuleRef.setIndividualVolume) window.mediaModuleRef.setIndividualVolume(peerId, parseFloat(e.target.value));
-        });
-        volumeControlContainer.appendChild(slider);
-        li.appendChild(volumeControlContainer);
-        fragment.appendChild(li);
-        count++;
-    }
-    userListUl.innerHTML = '';
-    userListUl.appendChild(fragment);
-    if (userCountSpan) userCountSpan.textContent = count;
+    console.log("updateUserList should be replaced by a reactive Lightview component.");
 }
 function findPeerIdByNickname(nickname) {
     for (const id in peerNicknames) if (peerNicknames[id].toLowerCase() === nickname.toLowerCase()) return id;
@@ -493,64 +426,74 @@ async function deriveKeyFromPassword_ImportExport(password, salt) {
     return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: 750000, hash: "SHA-256" }, keyMaterial, { name: CRYPTO_ALGO, length: 256 }, true, ["encrypt", "decrypt"]);
 }
 
-export async function joinRoomAndSetup() {
-    window.localNickname = nicknameInput.value.trim();
-    let roomIdToJoin = roomIdInput.value.trim();
-
-    // NEW: If the room ID looks like an email, assume it's a personal space and force host mode.
-    // This corrects the state if the calling context (e.g., selectFolder) doesn't set window.isHost.
-    const isEmailRoom = roomIdToJoin && roomIdToJoin.includes('@') && roomIdToJoin.includes('.');
-    if (isEmailRoom) {
-        window.isHost = true;
-        console.log(`Detected email-based room ID ('${roomIdToJoin}'). Forcing host mode.`);
+export async function joinRoomAndSetup(appState) {
+    if (!appState || !appState.workspace) {
+        logStatus("joinRoomAndSetup called without a workspace state.", true);
+        return;
     }
 
-    // NEW: If host and no nickname is set, default it to the room ID (the account email).
-    if (window.isHost && !window.localNickname && roomIdToJoin) {
-        window.localNickname = roomIdToJoin;
-    }
+    let { nickname: localNickname, roomId: roomIdToJoin, isHost } = appState.workspace;
 
-    if (!window.localNickname) { logStatus("Please enter a nickname.", true); return; }
-    localStorage.setItem('viewPartyNickname', window.localNickname);
-    populateSettingsSection();
-    const roomPasswordProvided = window.isHost ? roomPasswordInput.value : joinPasswordInput.value;
+    // The logic for determining host/email room is now handled in index.html before calling this.
     
-    const requiresPassword = !window.isHost;
+    if (!localNickname) { 
+        logStatus("Please enter a nickname.", true); 
+        appState.workspace.status = 'disconnected';
+        return; 
+    }
+    localStorage.setItem('viewPartyNickname', localNickname);
+    populateSettingsSection(appState); // Pass state
+    
+    const roomPasswordProvided = isHost ? roomPasswordInput.value : joinPasswordInput.value;
+    const requiresPassword = !isHost;
     
     if (requiresPassword && !roomPasswordProvided) {
         logStatus("Workspace password is required.", true);
         if(createPartyBtn) createPartyBtn.disabled = false; if(joinWorkspaceBtn) joinWorkspaceBtn.disabled = false;
+        appState.workspace.status = 'disconnected';
         return;
     }
     
-    const effectivePassword = roomPasswordProvided || (window.isHost ? 'host-personal-default' : '');
+    const effectivePassword = roomPasswordProvided || (isHost ? 'host-personal-default' : '');
     
-    if (window.isHost) {
-        if (!roomIdToJoin) roomIdToJoin = (importedWorkspaceState && importedWorkspaceState.roomId) ? importedWorkspaceState.roomId : generateMemorableRoomCode();
+    if (isHost) {
+        if (!roomIdToJoin) {
+            roomIdToJoin = (importedWorkspaceState && importedWorkspaceState.roomId) ? importedWorkspaceState.roomId : generateMemorableRoomCode();
+            appState.workspace.roomId = roomIdToJoin; // Update state
+        }
         if(roomIdInput) roomIdInput.value = roomIdToJoin;
-        // The logic to default nickname was moved up to handle the case where it's empty.
     } else if (!roomIdToJoin) {
         logStatus("Room Code is required to join a workspace.", true);
         if(createPartyBtn) createPartyBtn.disabled = false; if(joinWorkspaceBtn) joinWorkspaceBtn.disabled = false;
+        appState.workspace.status = 'disconnected';
         return;
     }
+
     const sanitizedRoomId = roomIdToJoin.toLowerCase().replace(/[\s,]+/g, '-');
     if (roomIdToJoin !== sanitizedRoomId) {
         logStatus(`Using sanitized Room Code: ${sanitizedRoomId}`);
         if(roomIdInput) roomIdInput.value = sanitizedRoomId;
+        appState.workspace.roomId = sanitizedRoomId; // Update state
     }
-    window.currentRoomId = sanitizedRoomId;
-    logStatus(`Connecting to workspace: ${window.currentRoomId}...`);
+    
+    logStatus(`Connecting to workspace: ${sanitizedRoomId}...`);
+    appState.workspace.status = 'connecting';
+
     [createPartyBtn, joinWorkspaceBtn, importWorkspaceBtn, nicknameInput, roomIdInput, roomPasswordInput, joinPasswordInput, confirmCreateBtn, confirmJoinBtn].forEach(el => el && (el.disabled = true));
+    
     try {
         const config = { appId: APP_ID, password: effectivePassword };
-        roomApi = await joinRoom(config, window.currentRoomId);
+        roomApi = await joinRoom(config, sanitizedRoomId);
+        appState.workspace.status = 'connected';
         logStatus("Setting up workspace features...");
-        // Load saved space data
-        const savedSpace = localStorage.getItem('space_' + window.currentRoomId);
+
+        // Load saved space data and merge into state
+        const savedSpace = localStorage.getItem('space_' + sanitizedRoomId);
         if (savedSpace) {
             importedWorkspaceState = JSON.parse(savedSpace);
+            console.log("Loaded saved workspace data from localStorage for room:", sanitizedRoomId);
         }
+
         [sendChatMessage, onChatMessage] = roomApi.makeAction('chatMsg');
         [sendNickname, onNickname] = roomApi.makeAction('nick');
         [sendPrivateMessage, onPrivateMessage] = roomApi.makeAction('privMsg');
@@ -568,7 +511,9 @@ export async function joinRoomAndSetup() {
         [sendDocumentContentUpdate, onDocumentContentUpdate] = roomApi.makeAction('docUpd');
         [sendCreateChannel, onCreateChannel] = roomApi.makeAction('createChan');
         [sendInitialChannels, onInitialChannels] = roomApi.makeAction('initChans');
+        
         const shareModuleDeps = {
+            workspace: appState.workspace, // Pass the workspace object directly
             sendChatMessage, sendPrivateMessage, sendFileMeta, sendFileChunk,
             sendChatHistory, sendCreateChannel, sendInitialChannels,
             sendDrawCommand, sendInitialWhiteboard,
@@ -576,20 +521,25 @@ export async function joinRoomAndSetup() {
             sendInitialDocuments, sendCreateDocument, sendRenameDocument,
             sendDeleteDocument, sendDocumentContentUpdate,
             logStatus, showNotification, localGeneratedPeerId,
-            getPeerNicknames: () => peerNicknames, getIsHost: () => window.isHost, getLocalNickname: () => window.localNickname,
-            findPeerIdByNicknameFnc: findPeerIdByNickname, getImportedWorkspaceState: () => importedWorkspaceState,
-            clearImportedWorkspaceState: () => { importedWorkspaceState = null; }, currentRoomId: window.currentRoomId,
-            saveSpaceToLocalStorage,
+            getPeerNicknames: () => appState.workspace.peers, // Read from state
+            findPeerIdByNicknameFnc: findPeerIdByNickname, 
+            getImportedWorkspaceState: () => importedWorkspaceState,
+            clearImportedWorkspaceState: () => { importedWorkspaceState = null; },
+            saveSpaceToLocalStorage: () => saveSpaceToLocalStorage(appState),
         };
         window.shareModuleRef = initShareFeatures(shareModuleDeps);
+        
         const mediaModuleDeps = {
             roomApi, logStatus, showNotification, localGeneratedPeerId,
-            getPeerNicknames: () => peerNicknames, getLocalNickname: () => window.localNickname,
+            getPeerNicknames: () => appState.workspace.peers, // Read from state
+            getLocalNickname: () => appState.workspace.nickname, // Read from state
             initialVideoFlip: spacesSettings.videoFlip, initialPttEnabled: spacesSettings.pttEnabled,
             initialPttKey: spacesSettings.pttKey, initialPttKeyDisplay: spacesSettings.pttKeyDisplay,
-            initialGlobalVolume: spacesSettings.globalVolume, updateUserList: updateUserList,
+            initialGlobalVolume: spacesSettings.globalVolume, 
+            updateUserList: updateUserList, // This should be replaced by reactive UI
         };
         window.mediaModuleRef = initMediaFeatures(mediaModuleDeps);
+
         onChatMessage((data, peerId) => {
             window.shareModuleRef.handleChatMessage(data, peerId);
         });
@@ -626,46 +576,63 @@ export async function joinRoomAndSetup() {
             window.shareModuleRef.handleCreateChannel(data, peerId);
         });
         onInitialChannels((data, peerId) => window.shareModuleRef.handleInitialChannels(data, peerId));
+        
         onNickname(async (nicknameData, peerId) => {
             const { nickname, initialJoin, isHost: peerIsHost } = nicknameData;
-            const oldNickname = peerNicknames[peerId];
-            peerNicknames[peerId] = nickname;
+            const oldNickname = appState.workspace.peers[peerId];
+            
+            // Reactively update the peers object
+            appState.workspace.peers = { ...appState.workspace.peers, [peerId]: nickname };
+
             if (initialJoin && peerId !== localGeneratedPeerId) {
                 if (!oldNickname || oldNickname !== nickname) logStatus(`${escapeHtml(nickname)}${peerIsHost ? ' (Host)' : ''} has joined.`);
-                if (sendNickname) await sendNickname({ nickname: window.localNickname, initialJoin: false, isHost: window.isHost }, peerId);
+                if (sendNickname) await sendNickname({ nickname: appState.workspace.nickname, initialJoin: false, isHost: appState.workspace.isHost }, peerId);
             } else if (oldNickname && oldNickname !== nickname) {
                  logStatus(`${escapeHtml(oldNickname)} is now known as ${escapeHtml(nickname)}.`);
             }
-            updateUserList();
+            // No need to call updateUserList(), UI will react to state change.
             if (window.mediaModuleRef && window.mediaModuleRef.updatePeerNicknameInUI) window.mediaModuleRef.updatePeerNicknameInUI(peerId, nickname);
         });
+
         roomApi.onPeerJoin(async (joinedPeerId) => {
             logStatus(`Peer ${joinedPeerId.substring(0,6)}... joining, preparing to sync...`);
-            if (sendNickname) await sendNickname({ nickname: window.localNickname, initialJoin: true, isHost: window.isHost }, joinedPeerId);
+            if (sendNickname) await sendNickname({ nickname: appState.workspace.nickname, initialJoin: true, isHost: appState.workspace.isHost }, joinedPeerId);
             if (window.mediaModuleRef && typeof setupMediaForNewPeer === 'function') setupMediaForNewPeer(joinedPeerId);
-            if (window.isHost && window.shareModuleRef && window.shareModuleRef.sendFullStateToPeer) window.shareModuleRef.sendFullStateToPeer(joinedPeerId);
-            updateUserList();
+            if (appState.workspace.isHost && window.shareModuleRef && window.shareModuleRef.sendFullStateToPeer) window.shareModuleRef.sendFullStateToPeer(joinedPeerId);
+            // No need to call updateUserList()
         });
+
         roomApi.onPeerLeave(leftPeerId => {
-            const departedUser = peerNicknames[leftPeerId] || `Peer ${leftPeerId.substring(0, 6)}`;
+            const departedUser = appState.workspace.peers[leftPeerId] || `Peer ${leftPeerId.substring(0, 6)}`;
             logStatus(`${escapeHtml(departedUser)} has left.`);
-            delete peerNicknames[leftPeerId];
+            
+            // Reactively update the peers object
+            const newPeers = { ...appState.workspace.peers };
+            delete newPeers[leftPeerId];
+            appState.workspace.peers = newPeers;
+
             if(typeof handleShareModulePeerLeave === 'function') handleShareModulePeerLeave(leftPeerId);
             if (window.mediaModuleRef && typeof cleanupMediaForPeer === 'function') cleanupMediaForPeer(leftPeerId);
-            updateUserList();
+            // No need to call updateUserList()
         });
+
         roomApi.onPeerStream((stream, peerId, metadata) => {
             if (window.mediaModuleRef && typeof handleMediaPeerStream === 'function') handleMediaPeerStream(stream, peerId, metadata);
         });
         logStatus("Finalizing workspace setup...");
         if(setupSection) setupSection.classList.add('hidden');
         if(inRoomInterface) inRoomInterface.classList.remove('hidden');
-        if(currentRoomCodeSpan) currentRoomCodeSpan.textContent = window.currentRoomId; 
-        if(currentNicknameSpan) currentNicknameSpan.textContent = escapeHtml(window.localNickname); 
+        
+        // These will be replaced by reactive bindings in index.html
+        if(currentRoomCodeSpan) currentRoomCodeSpan.textContent = appState.workspace.roomId; 
+        if(currentNicknameSpan) currentNicknameSpan.textContent = escapeHtml(appState.workspace.nickname); 
+        
         if (window.mediaModuleRef && window.mediaModuleRef.enableMediaButtons) window.mediaModuleRef.enableMediaButtons();
-        if (sendNickname) await sendNickname({ nickname: window.localNickname, initialJoin: true, isHost: window.isHost }, Object.keys(roomApi.getPeers()).filter(p => p !== localGeneratedPeerId));
-        updateUserList();
-        logStatus(`You joined workspace: ${window.currentRoomId} as ${escapeHtml(window.localNickname)}${window.isHost ? ' (Host)' : ''}.`);
+        if (sendNickname) await sendNickname({ nickname: appState.workspace.nickname, initialJoin: true, isHost: appState.workspace.isHost }, Object.keys(roomApi.getPeers()).filter(p => p !== localGeneratedPeerId));
+        
+        // No need to call updateUserList()
+        logStatus(`You joined workspace: ${appState.workspace.roomId} as ${escapeHtml(appState.workspace.nickname)}${appState.workspace.isHost ? ' (Host)' : ''}.`);
+        
         const shareModule = window.shareModuleRef;
         if (shareModule) {
             shareModule.redrawWhiteboardFromHistoryIfVisible(true);
@@ -680,10 +647,11 @@ export async function joinRoomAndSetup() {
     } catch (error) {
         console.error("Error during room join or Trystero setup:", error);
         logStatus(`Error: ${error.message}. Could be incorrect password or network issue. Please try again.`, true); 
-        resetToSetupState();
+        appState.workspace.status = 'disconnected'; // Update state on error
+        resetToSetupState(appState);
     }
 }
-async function leaveRoomAndCleanup() {
+async function leaveRoomAndCleanup(appState) {
     logStatus("Leaving workspace...");
     if (window.mediaModuleRef && typeof stopAllLocalMedia === 'function') await stopAllLocalMedia(false);
     if (roomApi) {
@@ -692,9 +660,13 @@ async function leaveRoomAndCleanup() {
     }
     roomApi = null;
     sendChatMessage=onChatMessage=sendNickname=onNickname=sendPrivateMessage=onPrivateMessage=sendFileMeta=onFileMeta=sendFileChunk=onFileChunk=sendDrawCommand=onDrawCommand=sendInitialWhiteboard=onInitialWhiteboard=sendKanbanUpdate=onKanbanUpdate=sendInitialKanban=onInitialKanban=sendChatHistory=onChatHistory=sendInitialDocuments=onInitialDocuments=sendCreateDocument=onCreateDocument=sendRenameDocument=onRenameDocument=sendDeleteDocument=onDeleteDocument=sendDocumentContentUpdate=onDocumentContentUpdate=sendCreateChannel=onCreateChannel=sendInitialChannels=onInitialChannels=null;
-    resetToSetupState();
+    resetToSetupState(appState);
 }
-function resetToSetupState() {
+function resetToSetupState(appState) {
+    if (appState) {
+        appState.workspace = null; // The primary way to reset state now
+    }
+
     if(inRoomInterface) inRoomInterface.classList.add('hidden');
     if(setupSection) setupSection.classList.remove('hidden');
     [createPartyBtn,joinWorkspaceBtn,importWorkspaceBtn,nicknameInput,roomIdInput,roomPasswordInput,joinPasswordInput,confirmCreateBtn,confirmJoinBtn].forEach(el=>el&&(el.disabled=false));
@@ -712,24 +684,26 @@ function resetToSetupState() {
     if(defaultSectionButton)defaultSectionButton.classList.add('active');
     if(defaultSection)defaultSection.classList.remove('hidden');
     currentActiveSection='chatSection';
-    peerNicknames={};window.isHost=false;window.currentRoomId='';importedWorkspaceState=null;
+    peerNicknames={}; // This should be removed as it's in appState now
+    importedWorkspaceState=null;
 }
 
 // Expose the function globally for use in other scripts
 window.joinRoomAndSetup = joinRoomAndSetup;
 
 async function initializeApp() {
-    window.localNickname = localStorage.getItem('viewPartyNickname') || '';
-    if (nicknameInput) {
-        nicknameInput.value = window.localNickname;
-        nicknameInput.addEventListener('input', () => {
-            localStorage.setItem('viewPartyNickname', nicknameInput.value.trim());
-        });
-    }
+    // Nickname is now handled by the Lightview state initialization in index.html
+    // window.localNickname = localStorage.getItem('viewPartyNickname') || '';
+    // if (nicknameInput) {
+    //     nicknameInput.value = window.localNickname;
+    //     nicknameInput.addEventListener('input', () => {
+    //         localStorage.setItem('viewPartyNickname', nicknameInput.value.trim());
+    //     });
+    // }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) console.warn("Screen sharing not supported by your browser.");
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) console.warn("Video/Audio capture not supported by your browser.");
     await loadSettings();
-    resetToSetupState();
+    resetToSetupState(null); // Initial reset without state
     
     // On initial load, override resetToSetupState to show the intro page.
     if (setupSection) setupSection.classList.add('hidden');
