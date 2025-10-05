@@ -477,6 +477,15 @@ function handleAddChannelUI() {
 
 function renderChannelList() {
     if (!channelListDiv) return;
+    
+    // Safety check: ensure channels array exists
+    if (!appStateDep || !Array.isArray(appStateDep.channels)) {
+        console.warn("appStateDep.channels is not an array, initializing to empty array");
+        if (appStateDep) appStateDep.channels = [];
+        channelListDiv.innerHTML = '';
+        return;
+    }
+    
     channelListDiv.innerHTML = '';
     appStateDep.channels.forEach(channel => {
         const channelDiv = document.createElement('div');
@@ -741,7 +750,6 @@ function handleSendMessage() {
         }
         const targetPeerId = findPeerIdByNicknameDepFnc ? findPeerIdByNicknameDepFnc(targetNickname) : null;
         if (targetPeerId && sendPrivateMessageDep) {
-            // PMs are not part of the channel/thread system
             sendPrivateMessageDep({ content: pmContent, timestamp }, targetPeerId);
             displaySystemMessage(`Sent PM to ${targetNickname}: ${pmContent}`);
         } else {
@@ -757,13 +765,15 @@ function handleSendMessage() {
             timestamp, 
             msgId,
             channelId: appStateDep.currentActiveChannelId,
-            parentId: currentReplyParentId // Add parentId if it exists
+            parentId: currentReplyParentId,
+            nickname: localCurrentNickname, // ADD THIS LINE
+            senderNickname: localCurrentNickname // Keep for local display
         };
         sendChatMessageDep(msgData);
         addMessageToHistoryAndDisplay({ senderNickname: localCurrentNickname, ...msgData }, true);
     }
     messageInput.value = '';
-    cancelReply(); // Reset reply state after sending
+    cancelReply();
     if (emojiPickerPopup && !emojiPickerPopup.classList.contains('hidden')) emojiPickerPopup.classList.add('hidden');
 }
 
@@ -796,7 +806,7 @@ async function handleChatFileSelected(event) {
 
     addMessageToHistoryAndDisplay(msgData, true);
     
-    // Send all relevant metadata for threading and identification
+    // FIXED: Remove meta argument - Trystero only allows meta with binary data
     sendFileMetaDep({
         ...fileMeta,
         msgId: msgId,
@@ -804,7 +814,7 @@ async function handleChatFileSelected(event) {
         parentId: currentReplyParentId
     });
 
-    cancelReply(); // Reset reply state after sending
+    cancelReply();
 
     const CHUNK_SIZE = 16 * 1024;
     let offset = 0;
@@ -813,6 +823,7 @@ async function handleChatFileSelected(event) {
     reader.onload = (e) => {
         const chunkData = e.target.result;
         const isFinal = (offset + chunkData.byteLength) >= file.size;
+        // FIXED: Remove the meta object wrapper, just pass the metadata as the third argument directly
         sendFileChunkDep(chunkData, null, { fileName: fileMeta.name, fileId: fileMeta.id, final: isFinal });
         
         const safeLocalNickname = localCurrentNickname.replace(/\W/g, '');
@@ -855,8 +866,11 @@ async function handleChatFileSelected(event) {
 export function handleChatMessage(msgData, peerId) {
     // Basic validation
     if (!msgData || typeof msgData.message !== 'string' || typeof msgData.nickname !== 'string') {
+        console.warn("Invalid message data received:", msgData); // ADD THIS for debugging
         return;
     }
+    // Add senderNickname for display consistency
+    msgData.senderNickname = msgData.nickname;
     addMessageToHistoryAndDisplay(msgData, false);
 }
 export function handlePrivateMessage(pmData, senderPeerId) {
@@ -975,9 +989,15 @@ export function handleInitialChannels(receivedChannels, peerId) {
     if (getIsHostDep()) return;
     console.log(`Received initial channels from host.`);
     
+    // Ensure channels array exists before assignment
+    if (!appStateDep) {
+        console.error("appStateDep is not initialized");
+        return;
+    }
+    
     // Simple overwrite, assuming host is the source of truth.
-    appStateDep.channels = receivedChannels.channels;
-    appStateDep.currentActiveChannelId = receivedChannels.activeId;
+    appStateDep.channels = Array.isArray(receivedChannels.channels) ? receivedChannels.channels : [];
+    appStateDep.currentActiveChannelId = receivedChannels.activeId || null;
 
     renderChannelList();
     displayChatForCurrentChannel();

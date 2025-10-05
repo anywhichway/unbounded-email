@@ -425,7 +425,7 @@ export async function joinRoomAndSetup(appState) {
         return;
     }
 
-    let { nickname: localNickname, roomId: roomIdToJoin, isHost } = appState.workspace;
+    let { nickname: localNickname, roomId: roomIdToJoin, isHost, password: workspacePassword } = appState.workspace;
 
     // The logic for determining host/email room is now handled in index.html before calling this.
     
@@ -437,7 +437,8 @@ export async function joinRoomAndSetup(appState) {
     localStorage.setItem('viewPartyNickname', localNickname);
     populateSettingsSection(appState); // Pass state
     
-    const roomPasswordProvided = isHost ? roomPasswordInput.value : joinPasswordInput.value;
+    // Use the password from appState.workspace instead of DOM inputs
+    const roomPasswordProvided = workspacePassword || '';
     const requiresPassword = !isHost;
     
     if (requiresPassword && !roomPasswordProvided) {
@@ -485,6 +486,29 @@ export async function joinRoomAndSetup(appState) {
         if (savedSpace) {
             importedWorkspaceState = JSON.parse(savedSpace);
             console.log("Loaded saved workspace data from localStorage for room:", sanitizedRoomId);
+        }
+
+        // FIXED: Ensure ALL workspace properties are initialized before setting up share module
+        if (!Array.isArray(appState.workspace.channels)) {
+            appState.workspace.channels = [];
+        }
+        if (!appState.workspace.currentActiveChannelId) {
+            appState.workspace.currentActiveChannelId = null;
+        }
+        if (!Array.isArray(appState.workspace.chatHistory)) {
+            appState.workspace.chatHistory = [];
+        }
+        if (!appState.workspace.kanbanData) {
+            appState.workspace.kanbanData = { columns: [] };
+        }
+        if (!Array.isArray(appState.workspace.whiteboardHistory)) {
+            appState.workspace.whiteboardHistory = [];
+        }
+        if (!appState.workspace.documents) {
+            appState.workspace.documents = {};
+        }
+        if (!appState.workspace.peers) {
+            appState.workspace.peers = {};
         }
 
         [sendChatMessage, onChatMessage] = roomApi.makeAction('chatMsg');
@@ -678,30 +702,359 @@ function resetToSetupState(appState) {
 // Expose the function globally for use in other scripts
 window.joinRoomAndSetup = joinRoomAndSetup;
 
+// Add this function before initializeApp()
+window.loadSavedSpace = async function(roomId) {
+    console.log('=== loadSavedSpace CALLED ===');
+    console.log('roomId:', roomId);
+    console.log('Current appState:', window.appState);
+    
+    const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+    console.log('All spaces:', spaces);
+    const spaceInfo = spaces[roomId];
+    console.log('Space info for', roomId, ':', spaceInfo);
+    
+    if (!spaceInfo) {
+        logStatus("Space not found in saved spaces.", true);
+        alert('Space not found in saved spaces.');
+        return;
+    }
+    
+    const nickname = spaceInfo.nickname || localStorage.getItem('viewPartyNickname') || '';
+    if (!nickname) {
+        logStatus("Please set a nickname first.", true);
+        alert('Please set a nickname first.');
+        return;
+    }
+    
+    console.log('Using nickname:', nickname);
+    
+    // If already in a workspace, leave it first
+    if (window.appState.workspace && window.appState.workspace.status === 'connected') {
+        console.log('Leaving current workspace...');
+        logStatus("Leaving current workspace...");
+        await leaveRoomAndCleanup(window.appState);
+        // Wait a moment for cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // Hide all dialogs first
+    const dialogs = document.querySelectorAll('.dialog-overlay');
+    dialogs.forEach(dialog => dialog.classList.add('hidden'));
+    
+    // Create workspace state with all required properties
+    window.appState.workspace = {
+        roomId: roomId,
+        nickname: nickname,
+        password: spaceInfo.password || '',
+        isHost: spaceInfo.isHost || false,
+        status: 'disconnected',
+        peers: {},
+        chatHistory: [],
+        channels: [],
+        currentActiveChannelId: null,
+        kanbanData: { columns: [] },
+        whiteboardHistory: [],
+        documents: {},
+    };
+    
+    console.log('Workspace state created:', window.appState.workspace);
+    
+    // Ensure UI is in correct state
+    const setupSection = document.getElementById('setupSection');
+    const introSection = document.getElementById('introSection');
+    const inRoomInterface = document.getElementById('inRoomInterface');
+    const chatSection = document.getElementById('chatSection');
+    
+    if (setupSection) setupSection.classList.add('hidden');
+    if (introSection) introSection.classList.add('hidden');
+    if (inRoomInterface) inRoomInterface.classList.remove('hidden');
+    
+    // Show chat section and hide others
+    const contentSections = document.querySelectorAll('.content-section');
+    contentSections.forEach(section => section.classList.add('hidden'));
+    if (chatSection) chatSection.classList.remove('hidden');
+    
+    // Update sidebar active state
+    const sidebarButtons = document.querySelectorAll('.sidebar-button');
+    sidebarButtons.forEach(btn => btn.classList.remove('active'));
+    const chatButton = document.querySelector('.sidebar-button[data-section="chatSection"]');
+    if (chatButton) chatButton.classList.add('active');
+    
+    currentActiveSection = 'chatSection';
+    
+    console.log('UI state updated, joining room...');
+    
+    // Join the room
+    try {
+        await window.joinRoomAndSetup(window.appState);
+        logStatus(`Loaded space: ${roomId}`);
+        console.log('=== Space loaded successfully ===');
+    } catch (error) {
+        console.error('Error loading saved space:', error);
+        logStatus(`Failed to load space: ${error.message}`, true);
+        alert(`Failed to load space: ${error.message}`);
+        // Reset to intro on error
+        if (inRoomInterface) inRoomInterface.classList.remove('hidden');
+        contentSections.forEach(section => section.classList.add('hidden'));
+        if (introSection) introSection.classList.remove('hidden');
+    }
+};
+
 async function initializeApp() {
-    // Nickname is now handled by the Lightview state initialization in index.html
-    // window.localNickname = localStorage.getItem('viewPartyNickname') || '';
-    // if (nicknameInput) {
-    //     nicknameInput.value = window.localNickname;
-    //     nicknameInput.addEventListener('input', () => {
-    //         localStorage.setItem('viewPartyNickname', nicknameInput.value.trim());
-    //     });
-    // }
+    console.log('=== initializeApp starting ===');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) console.warn("Screen sharing not supported by your browser.");
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) console.warn("Video/Audio capture not supported by your browser.");
     await loadSettings();
-    resetToSetupState(null); // Initial reset without state
     
-    // On initial load, override resetToSetupState to show the intro page.
-    if (setupSection) setupSection.classList.add('hidden');
-    if (inRoomInterface) inRoomInterface.classList.remove('hidden');
-
-    // Hide the default chat section shown by resetToSetupState and show the intro section.
-    const chatSection = document.getElementById('chatSection');
+    // Double-check that loadSavedSpace is exposed
+    console.log('window.loadSavedSpace is:', typeof window.loadSavedSpace);
+    
+    // Refresh saved spaces sidebar first
+    if (typeof window.refreshSpacesSidebar === 'function') {
+        console.log('Calling refreshSpacesSidebar...');
+        await window.refreshSpacesSidebar();
+    } else {
+        console.warn('window.refreshSpacesSidebar not found!');
+    }
+    
+    // Check if we have a saved nickname
+    const savedNickname = localStorage.getItem('viewPartyNickname');
+    
+    // Don't call resetToSetupState here - let the UI show the folders by default
+    // The inRoomInterface should be visible by default in index.html
+    
+    // Make sure the intro section is showing and content sections are hidden
     const introSection = document.getElementById('introSection');
-    if (chatSection) chatSection.classList.add('hidden');
-    if (introSection) introSection.classList.remove('hidden');
+    const contentSections = document.querySelectorAll('.content-section');
     
+    contentSections.forEach(section => section.classList.add('hidden'));
+    if (introSection) {
+        introSection.classList.remove('hidden');
+    }
+    
+    // Ensure inRoomInterface is visible and setupSection is hidden
+    if (inRoomInterface) inRoomInterface.classList.remove('hidden');
+    if (setupSection) setupSection.classList.add('hidden');
+    
+    // Make sure the intro button is active in sidebar
+    const sidebarButtons = document.querySelectorAll('.sidebar-button');
+    sidebarButtons.forEach(btn => btn.classList.remove('active'));
+    const introButton = document.querySelector('.sidebar-button[data-section="introSection"]');
+    if (introButton) introButton.classList.add('active');
+    
+    currentActiveSection = 'introSection';
+    
+    console.log('=== initializeApp complete ===');
     console.log('Spaces: Welcome! Select an action from the sidebar to get started.');
 }
+
+// Create Space Dialog Handlers
+document.getElementById('confirmCreateSpaceBtn').addEventListener('click', async () => {
+    const nickname = document.getElementById('createNicknameInput').value.trim();
+    const password = document.getElementById('createRoomPasswordInput').value.trim();
+    
+    if (!nickname) {
+        alert('Please enter a username.');
+        return;
+    }
+    if (!password) {
+        alert('Please enter a workspace password.');
+        return;
+    }
+    
+    localStorage.setItem('viewPartyNickname', nickname);
+    
+    // Generate a random room ID
+    const roomId = Math.random().toString(36).substring(2, 10);
+    
+    // Create workspace state
+    window.appState.workspace = {
+        roomId: roomId,
+        nickname: nickname,
+        password: password,
+        isHost: true,
+        status: 'disconnected',
+        peers: {},
+        chatHistory: [],
+        channels: [],
+        currentActiveChannelId: null,
+        kanbanData: { columns: [] },
+        whiteboardHistory: [],
+        documents: {},
+    };
+    
+    // Save to local storage
+    const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+    spaces[roomId] = {
+        nickname: nickname,
+        password: password,
+        isHost: true
+    };
+    localStorage.setItem('spacesList', JSON.stringify(spaces));
+    
+    // Refresh sidebar to show new space
+    if (typeof window.refreshSpacesSidebar === 'function') {
+        await window.refreshSpacesSidebar();
+    }
+    
+    // Join the room
+    await window.joinRoomAndSetup(window.appState);
+    
+    // Hide dialog and show interface
+    document.getElementById('createSpaceDialog').classList.add('hidden');
+    document.getElementById('inRoomInterface').classList.remove('hidden');
+    
+    // Show chat section
+    const contentSections = document.querySelectorAll('.content-section');
+    contentSections.forEach(section => section.classList.add('hidden'));
+    document.getElementById('chatSection').classList.remove('hidden');
+});
+
+document.getElementById('cancelCreateSpaceBtn').addEventListener('click', () => {
+    document.getElementById('createSpaceDialog').classList.add('hidden');
+    document.getElementById('inRoomInterface').classList.remove('hidden');
+});
+
+// Join Space Dialog Handlers
+document.getElementById('confirmJoinSpaceBtn').addEventListener('click', async () => {
+    const nickname = document.getElementById('joinNicknameInput').value.trim();
+    const roomId = document.getElementById('joinRoomIdInput').value.trim();
+    const password = document.getElementById('joinRoomPasswordInput').value.trim();
+    
+    if (!nickname) {
+        alert('Please enter a username.');
+        return;
+    }
+    if (!roomId) {
+        alert('Please enter a workspace code.');
+        return;
+    }
+    if (!password) {
+        alert('Please enter the workspace password.');
+        return;
+    }
+    
+    localStorage.setItem('viewPartyNickname', nickname);
+    
+    // Create workspace state
+    window.appState.workspace = {
+        roomId: roomId,
+        nickname: nickname,
+        password: password,
+        isHost: false,
+        status: 'disconnected',
+        peers: {},
+        chatHistory: [],
+        channels: [],
+        currentActiveChannelId: null,
+        kanbanData: { columns: [] },
+        whiteboardHistory: [],
+        documents: {},
+    };
+    
+    // Save to local storage
+    const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+    spaces[roomId] = {
+        nickname: nickname,
+        password: password,
+        isHost: false
+    };
+    localStorage.setItem('spacesList', JSON.stringify(spaces));
+    
+    // Refresh sidebar to show new space
+    if (typeof window.refreshSpacesSidebar === 'function') {
+        await window.refreshSpacesSidebar();
+    }
+    
+    // Join the room
+    await window.joinRoomAndSetup(window.appState);
+    
+    // Hide dialog and show interface
+    document.getElementById('joinSpaceDialog').classList.add('hidden');
+    document.getElementById('inRoomInterface').classList.remove('hidden');
+    
+    // Show chat section
+    const contentSections = document.querySelectorAll('.content-section');
+    contentSections.forEach(section => section.classList.add('hidden'));
+    document.getElementById('chatSection').classList.remove('hidden');
+});
+
+document.getElementById('cancelJoinSpaceBtn').addEventListener('click', () => {
+    document.getElementById('joinSpaceDialog').classList.add('hidden');
+    document.getElementById('inRoomInterface').classList.remove('hidden');
+});
+
+// Import Space Dialog Handlers
+document.getElementById('selectImportFileBtn').addEventListener('click', () => {
+    document.getElementById('importSpaceFilePicker').click();
+});
+
+document.getElementById('cancelImportSpaceBtn').addEventListener('click', () => {
+    document.getElementById('importSpaceDialog').classList.add('hidden');
+    document.getElementById('inRoomInterface').classList.remove('hidden');
+});
+
+document.getElementById('importSpaceFilePicker').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const nickname = document.getElementById('importNicknameInput').value.trim();
+    if (!nickname) {
+        alert('Please enter a username before importing.');
+        return;
+    }
+    
+    try {
+        const text = await file.text();
+        const imported = JSON.parse(text);
+        
+        // Validate the imported data structure
+        if (!imported.roomId || !imported.password) {
+            alert('Invalid workspace file format.');
+            return;
+        }
+        
+        localStorage.setItem('viewPartyNickname', nickname);
+        
+        // Create workspace state from imported data
+        window.appState.workspace = {
+            ...imported,
+            nickname: nickname,
+            status: 'disconnected',
+            peers: {}
+        };
+        
+        // Save to local storage
+        const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+        spaces[imported.roomId] = {
+            nickname: nickname,
+            password: imported.password,
+            isHost: imported.isHost || false
+        };
+        localStorage.setItem('spacesList', JSON.stringify(spaces));
+        
+        // Refresh sidebar to show imported space
+        if (typeof window.refreshSpacesSidebar === 'function') {
+            await window.refreshSpacesSidebar();
+        }
+        
+        // Join the room
+        await window.joinRoomAndSetup(window.appState);
+        
+        // Hide dialog and show interface
+        document.getElementById('importSpaceDialog').classList.add('hidden');
+        document.getElementById('inRoomInterface').classList.remove('hidden');
+        
+        // Show chat section
+        const contentSections = document.querySelectorAll('.content-section');
+        contentSections.forEach(section => section.classList.add('hidden'));
+        document.getElementById('chatSection').classList.remove('hidden');
+        
+        alert('Workspace imported successfully!');
+    } catch (err) {
+        console.error('Import error:', err);
+        alert('Failed to import workspace file.');
+    }
+});
+
 initializeApp();

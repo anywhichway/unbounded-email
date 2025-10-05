@@ -63,7 +63,6 @@
         getAccountIconClass,
         getCount: ({ folder, accountEmail, tagName, state }) => 0, // For now, no counts
         async selectFolder(folderType, value) {
-            // const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
             if (folderType === 'account') {
                 const roomName = value; // value is the account email
                 
@@ -94,37 +93,46 @@
                 this.currentFolder = value;
                 this.currentAccount = null;
                 this.selectedFolderId = `folder-${value}`;
+                
+                // If this is a saved space, treat it as a 'space' type click
+                const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+                if (spaces[value]) {
+                    return this.selectFolder('space', value);
+                }
+
                 // Special handling for Export Workspace
                 if (value === "Export Workspace") {
                     window.onClickExportWorkspace();
                     return;
                 }
+                
                 // Special handling for Create Space
                 if (value === "Create Space") {
                     document.getElementById('inRoomInterface').classList.add('hidden');
-                    document.getElementById('setupSection').classList.remove('hidden');
-                    document.getElementById('createWorkspaceFields').classList.remove('hidden');
-                    document.getElementById('joinWorkspaceFields').classList.add('hidden');
+                    document.getElementById('createSpaceDialog').classList.remove('hidden');
+                    document.getElementById('joinSpaceDialog').classList.add('hidden');
+                    document.getElementById('importSpaceDialog').classList.add('hidden');
+                    return;
                 }
+                
                 // Special handling for Join Space
                 if (value === "Join Space") {
                     document.getElementById('inRoomInterface').classList.add('hidden');
-                    document.getElementById('setupSection').classList.remove('hidden');
-                    document.getElementById('joinWorkspaceFields').classList.remove('hidden');
-                    document.getElementById('createWorkspaceFields').classList.add('hidden');
+                    document.getElementById('createSpaceDialog').classList.add('hidden');
+                    document.getElementById('joinSpaceDialog').classList.remove('hidden');
+                    document.getElementById('importSpaceDialog').classList.add('hidden');
+                    return;
                 }
-                // If it's an existing space
-                // if (spaces[value]) {
-                //     this.workspace = {
-                //         roomId: value,
-                //         nickname: localStorage.getItem('viewPartyNickname') || '',
-                //         isHost: false, // Assuming joining a saved space means you are not the host initially
-                //         status: 'disconnected',
-                //         peers: {},
-                //         // ... other fields will be loaded from localStorage in joinRoomAndSetup
-                //     };
-                //     await window.joinRoomAndSetup(this);
-                // }
+                
+                // Special handling for Import Space
+                if (value === "Import Space") {
+                    document.getElementById('inRoomInterface').classList.add('hidden');
+                    document.getElementById('createSpaceDialog').classList.add('hidden');
+                    document.getElementById('joinSpaceDialog').classList.add('hidden');
+                    document.getElementById('importSpaceDialog').classList.remove('hidden');
+                    return;
+                }
+                
                 // If it's a tab folder, switch to that section
                 const sectionId = folderToSection[value];
                 if (sectionId) {
@@ -144,6 +152,63 @@
                             }
                         });
                     }
+                }
+            } else if (folderType === 'space') {
+                console.log('=== selectFolder called with space type ===');
+                console.log('Space roomId:', value);
+                
+                // Handle clicking on a saved space
+                const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
+                const spaceData = spaces[value];
+                
+                if (!spaceData) {
+                    console.error('Space not found:', value);
+                    alert('Space not found in saved spaces.');
+                    return;
+                }
+                
+                console.log('Space data:', spaceData);
+                
+                // If already in a workspace, leave it first
+                if (this.workspace && this.workspace.status === 'connected') {
+                    console.log('Leaving current workspace...');
+                    // You'll need to expose leaveRoomAndCleanup or implement it here
+                    if (typeof window.leaveRoomAndCleanup === 'function') {
+                        await window.leaveRoomAndCleanup(this);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                // Hide all dialogs first
+                document.getElementById('createSpaceDialog').classList.add('hidden');
+                document.getElementById('joinSpaceDialog').classList.add('hidden');
+                document.getElementById('importSpaceDialog').classList.add('hidden');
+                document.getElementById('inRoomInterface').classList.remove('hidden');
+                
+                this.workspace = {
+                    roomId: value,
+                    nickname: spaceData.nickname,
+                    password: spaceData.password,
+                    isHost: spaceData.isHost,
+                    status: 'disconnected',
+                    peers: {},
+                    chatHistory: [],
+                    channels: [],
+                    currentActiveChannelId: null,
+                    kanbanData: { columns: [] },
+                    whiteboardHistory: [],
+                    documents: {},
+                };
+
+                console.log('Workspace state created:', this.workspace);
+                console.log('Calling joinRoomAndSetup...');
+
+                await window.joinRoomAndSetup(this);
+                
+                if (this.workspace && this.workspace.status === 'connected') {
+                    console.log(`Joined space '${value}'`);
+                    showChatSection();
+                    this.selectedFolderId = 'folder-Chat';
                 }
             }
         }
@@ -166,16 +231,37 @@
         const accountEmails = Object.keys(userAccounts).filter(key => !key.startsWith('_'));
         const spaces = JSON.parse(localStorage.getItem('spacesList') || '{}');
         const spaceNames = Object.keys(spaces);
+        
+        // Filter out spaces that are already account emails
+        const additionalSpaces = spaceNames.filter(roomId => !accountEmails.includes(roomId));
 
         const folderItems = await Promise.all([
             // Spaces folder
             FolderItem({ folder: { name: "Spaces", icon: "fas fa-users" }, isSubfolder: false, accountEmail: null, tagName: null, state: appState }),
+            // Account emails as subfolders
             ...(accountEmails.length > 0 ? await Promise.all(accountEmails.map(email =>
                 FolderItem({ folder: { email: email, name: email, icon: appState.getAccountIconClass(email) }, isSubfolder: true, accountEmail: email, tagName: null, state: appState })
             )) : []),
-            // Spaces subfolders (Create Space, Join Space, accounts, spaces)
+            // Dynamically created spaces as subfolders (excluding account emails)
+            ...(additionalSpaces.length > 0 ? await Promise.all(additionalSpaces.map(roomId =>
+                FolderItem({ 
+                    folder: { 
+                        name: roomId, 
+                        icon: "fas fa-users",
+                        spaceId: roomId
+                    }, 
+                    isSubfolder: true, 
+                    accountEmail: null, 
+                    tagName: null, 
+                    state: appState,
+                    folderType: 'space',
+                    value: roomId
+                })
+            )) : []),
+            // Spaces subfolders (Create Space, Join Space, Import Space)
             FolderItem({ folder: { name: "Create Space", icon: "fas fa-plus" }, isSubfolder: true, accountEmail: null, tagName: null, state: appState }),
             FolderItem({ folder: { name: "Join Space", icon: "fas fa-sign-in-alt" }, isSubfolder: true, accountEmail: null, tagName: null, state: appState }),
+            FolderItem({ folder: { name: "Import Space", icon: "fas fa-file-import" }, isSubfolder: true, accountEmail: null, tagName: null, state: appState }),
             // Other folders based on tabs
             FolderItem({ folder: { name: "Chat", icon: "fas fa-comments" }, isSubfolder: false, accountEmail: null, tagName: null, state: appState }),
             FolderItem({ folder: { name: "Video Chat", icon: "fas fa-video" }, isSubfolder: false, accountEmail: null, tagName: null, state: appState }),
@@ -194,12 +280,22 @@
         });
     };
 
+    // Function to refresh the sidebar
+    window.refreshSpacesSidebar = async () => {
+        document.getElementById("spacesSidebar").replaceChildren(await renderFolders());
+    };
+
     // Initial render
     document.getElementById("spacesSidebar").replaceChildren(await renderFolders());
     
-    // On load, show the main interface with the intro page and hide the setup section.
-    document.getElementById('setupSection').classList.add('hidden');
+    // On load, show the main interface with the intro page and hide all dialogs.
+    document.getElementById('createSpaceDialog').classList.add('hidden');
+    document.getElementById('joinSpaceDialog').classList.add('hidden');
+    document.getElementById('importSpaceDialog').classList.add('hidden');
     document.getElementById('inRoomInterface').classList.remove('hidden');
+
+    // Expose appState globally so main.js can access it
+    window.appState = appState;
 </script>
 </head>
 <body>
@@ -276,6 +372,55 @@
         </div>
 
         <input type="file" id="importFilePicker" class="hidden" accept=".spaces_encrypted" onchange="onChangeImportFilePicker(event)">
+    </div>
+
+    <!-- Create Space Dialog -->
+    <div id="createSpaceDialog" class="setup-controls-container card hidden">
+        <h2>Create New Space</h2>
+        <label for="createNicknameInput">Username:</label>
+        <input type="text" id="createNicknameInput" placeholder="Enter your username">
+
+        <label for="createRoomPasswordInput">Workspace Password:</label>
+        <input type="password" id="createRoomPasswordInput" placeholder="Enter workspace password">
+        
+        <div class="button-group">
+            <button id="confirmCreateSpaceBtn" class="btn">Create</button>
+            <button id="cancelCreateSpaceBtn" class="btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Join Space Dialog -->
+    <div id="joinSpaceDialog" class="setup-controls-container card hidden">
+        <h2>Join Existing Space</h2>
+        <label for="joinNicknameInput">Username:</label>
+        <input type="text" id="joinNicknameInput" placeholder="Enter your username">
+
+        <label for="joinRoomIdInput">Workspace Code:</label>
+        <input type="text" id="joinRoomIdInput" placeholder="Enter Room Code">
+        
+        <label for="joinRoomPasswordInput">Workspace Password:</label>
+        <input type="password" id="joinRoomPasswordInput" placeholder="Enter workspace password">
+        
+        <div class="button-group">
+            <button id="confirmJoinSpaceBtn" class="btn">Join</button>
+            <button id="cancelJoinSpaceBtn" class="btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Import Space Dialog -->
+    <div id="importSpaceDialog" class="setup-controls-container card hidden">
+        <h2>Import Workspace</h2>
+        <label for="importNicknameInput">Username:</label>
+        <input type="text" id="importNicknameInput" placeholder="Enter your username">
+
+        <p>Select a workspace file (.spaces_encrypted) to import:</p>
+        
+        <div class="button-group">
+            <button id="selectImportFileBtn" class="btn">Select File</button>
+            <button id="cancelImportSpaceBtn" class="btn">Cancel</button>
+        </div>
+        
+        <input type="file" id="importSpaceFilePicker" class="hidden" accept=".spaces_encrypted">
     </div>
 
 
