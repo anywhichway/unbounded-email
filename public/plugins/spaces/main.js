@@ -429,12 +429,55 @@ function generateMemorableRoomCode() {
     for (let i = 0; i < 4; i++) selectedWords.push(wordList[Math.floor(Math.random() * wordList.length)]);
     return selectedWords.join('-');
 }
-function updateUserList() {
-    // This function will be replaced by a reactive component in index.html
-    // bound to appState.workspace.peers and appState.workspace.nickname
-    if (!userListUl) return;
-    console.log("updateUserList should be replaced by a reactive Lightview component.");
+
+// Reactive user list component using Lightview
+async function updateUserList() {
+    if (!userListUl || !window.appState || !window.appState.workspace) return;
+    
+    const { render } = window.lightview;
+    const workspace = window.appState.workspace;
+    
+    // Create a reactive render that updates when workspace.peers changes
+    const userListElement = await render({
+        tagName: 'div',
+        attributes: { class: 'user-list-container' },
+        children: () => {
+            const peers = workspace.peers || {};
+            const localNickname = workspace.nickname || '';
+            const peerEntries = Object.entries(peers);
+            
+            // Update user count span
+            if (userCountSpan) {
+                userCountSpan.textContent = String(peerEntries.length + 1); // +1 for local user
+            }
+            
+            // Create list of user items
+            const userItems = [
+                // Local user first
+                {
+                    tagName: 'li',
+                    attributes: { class: 'user-list-item user-self' },
+                    children: [`${escapeHtml(localNickname)} (You)`]
+                },
+                // Then peers
+                ...peerEntries.map(([peerId, nickname]) => ({
+                    tagName: 'li',
+                    attributes: { 
+                        class: 'user-list-item',
+                        'data-peer-id': peerId
+                    },
+                    children: [escapeHtml(nickname)]
+                }))
+            ];
+            
+            return userItems;
+        }
+    }, { state: workspace });
+    
+    userListUl.innerHTML = '';
+    userListUl.appendChild(userListElement);
 }
+
 function findPeerIdByNickname(nickname) {
     if (!window.appState || !window.appState.workspace || !window.appState.workspace.peers) return null;
     const peers = window.appState.workspace.peers;
@@ -676,7 +719,9 @@ export async function joinRoomAndSetup(appState) {
         if (window.mediaModuleRef && window.mediaModuleRef.enableMediaButtons) window.mediaModuleRef.enableMediaButtons();
         if (sendNickname) await sendNickname({ nickname: appState.workspace.nickname, initialJoin: true, isHost: appState.workspace.isHost }, Object.keys(roomApi.getPeers()).filter(p => p !== localGeneratedPeerId));
         
-        // No need to call updateUserList()
+        // Initialize reactive user list component
+        await updateUserList();
+        
         logStatus(`You joined workspace: ${appState.workspace.roomId} as ${escapeHtml(appState.workspace.nickname)}${appState.workspace.isHost ? ' (Host)' : ''}.`);
         
         const shareModule = window.shareModuleRef;

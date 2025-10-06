@@ -13,6 +13,8 @@
 <script>
     const lightview = Lightview("browser");
     const {render, state, navigate} = lightview;
+    // Expose lightview globally for modules
+    window.lightview = lightview;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
 <script src="./index.js"></script>

@@ -1,8 +1,9 @@
-let { state } = Lightview();
+// Use the global lightview instance from index.html
+let { render, state } = window.lightview;
 
 let incomingFileBuffers = new Map();
-let currentReplyParentId = null; // NEW: To track which message we are replying to
-const MAX_THREAD_DEPTH = 4; // NEW: Max reply depth
+let currentReplyParentId = null; // To track which message we are replying to
+const MAX_THREAD_DEPTH = 4; // Max reply depth
 
 let appStateDep; // Central app state - references appState.workspace
 
@@ -205,8 +206,7 @@ export function initShareFeatures(dependencies) {
     }
 
 
-    renderChannelList();
-    displayChatForCurrentChannel();
+    // Reactive components will render automatically when state is ready
 
     return { 
       
@@ -348,6 +348,10 @@ function initChat() {
         });
     }
     addChannelBtn.addEventListener('click', handleAddChannelUI);
+
+    // Initialize reactive components - call once to set up reactive tracking
+    renderChannelList();
+    displayChatForCurrentChannel();
 }
 
 // NEW: Function to start a reply to a specific message
@@ -448,7 +452,7 @@ function _createAndBroadcastChannel(channelName, isDefault = false) {
     if (isDefault || appStateDep.channels.length === 1) {
         appStateDep.currentActiveChannelId = newChannel.id;
     }
-    renderChannelList();
+    // Reactive component will update automatically when channels array changes
     return newChannel;
 }
 
@@ -465,7 +469,8 @@ function handleAddChannelUI() {
     }
 }
 
-function renderChannelList() {
+// Reactive channel list component using Lightview
+async function renderChannelList() {
     if (!channelListDiv) return;
     
     // Safety check: ensure channels array exists
@@ -476,25 +481,60 @@ function renderChannelList() {
         return;
     }
     
-    channelListDiv.innerHTML = '';
-    appStateDep.channels.forEach(channel => {
-        const channelDiv = document.createElement('div');
-        channelDiv.className = 'channel-list-item';  // Changed from 'channel-item' to match CSS
-        channelDiv.textContent = channel.name;
-        channelDiv.dataset.channelId = channel.id;
-        if (channel.id === appStateDep.currentActiveChannelId) {
-            channelDiv.classList.add('active');
+    // Only set up the reactive component once
+    if (channelListDiv.dataset.reactiveSetup === 'true') {
+        return; // Already set up
+    }
+    channelListDiv.dataset.reactiveSetup = 'true';
+    
+    // Create a reactive render that updates when appStateDep.channels or currentActiveChannelId changes
+    const channelListElement = await render({
+        tagName: 'div',
+        attributes: { class: 'channel-list-container' },
+        children: () => {
+            // This function will be called reactively when appStateDep changes
+            // Access the length property to ensure Lightview tracks array changes
+            const channelsCount = appStateDep.channels.length;
+            if (!Array.isArray(appStateDep.channels) || channelsCount === 0) return [];
+            
+            return appStateDep.channels.map(channel => ({
+                tagName: 'div',
+                attributes: {
+                    class: () => {
+                        const classes = ['channel-list-item'];
+                        if (channel.id === appStateDep.currentActiveChannelId) {
+                            classes.push('active');
+                        }
+                        if (channel.hasNotification) {
+                            classes.push('has-notification');
+                        }
+                        return classes.join(' ');
+                    },
+                    'data-channel-id': channel.id || ''
+                },
+                children: [
+                    channel.name || 'Unnamed Channel',
+                    ...(channel.hasNotification ? [{
+                        tagName: 'span',
+                        attributes: { class: 'channel-notification-dot' },
+                        children: []
+                    }] : [])
+                ]
+            }));
         }
-        if (channel.hasNotification) {
-            channelDiv.classList.add('has-notification');
-            // Add a notification dot for visual indicator
-            const dot = document.createElement('span');
-            dot.className = 'channel-notification-dot';
-            channelDiv.appendChild(dot);
+    }, { state: appStateDep });
+    
+    // Set up click handlers after rendering
+    channelListElement.addEventListener('click', (e) => {
+        const channelItem = e.target.closest('.channel-list-item');
+        if (channelItem) {
+            const channelId = channelItem.dataset.channelId;
+            if (channelId) setActiveChannel(channelId);
         }
-        channelDiv.addEventListener('click', () => setActiveChannel(channel.id));
-        channelListDiv.appendChild(channelDiv);
     });
+    
+    channelListDiv.innerHTML = '';
+    channelListDiv.appendChild(channelListElement);
 }
 
 function setActiveChannel(channelId, clearNotifications = true) {
@@ -502,15 +542,16 @@ function setActiveChannel(channelId, clearNotifications = true) {
         return; // Already active, and we are not trying to clear notifications
     }
     appStateDep.currentActiveChannelId = channelId;
-    cancelReply(); // NEW: Cancel reply when switching channels
-    renderChannelList(); 
-    displayChatForCurrentChannel();
+    cancelReply(); // Cancel reply when switching channels
+    // No need to call renderChannelList() or displayChatForCurrentChannel() - they're reactive now!
 
-    if (clearNotifications && channelListDiv) {
+    if (clearNotifications) {
         const channel = appStateDep.channels.find(c => c.id === channelId);
-        if (channel) channel.hasNotification = false;
-        const channelDiv = channelListDiv.querySelector(`.channel-list-item[data-channel-id="${channelId}"]`);
-        if (channelDiv) channelDiv.classList.remove('has-notification');
+        if (channel) {
+            channel.hasNotification = false;
+            // Trigger reactivity by creating new channels array
+            appStateDep.channels = [...appStateDep.channels];
+        }
     }
     if(messageInput) {
         updateChatMessageInputPlaceholder();
@@ -518,42 +559,106 @@ function setActiveChannel(channelId, clearNotifications = true) {
     }
 }
 
-// MODIFIED: This function is now the entry point for rendering the entire chat, including threads.
-function displayChatForCurrentChannel() {
+// Reactive chat display using Lightview - entry point for rendering the entire chat, including threads
+async function displayChatForCurrentChannel() {
     if (!chatArea) return;
-    chatArea.innerHTML = '';
-    if (!appStateDep || !appStateDep.currentActiveChannelId) {
-        chatArea.innerHTML = '<div class="system-message">Select a channel to start chatting.</div>';
-        return;
+    
+    // Only set up the reactive component once
+    if (chatArea.dataset.reactiveSetup === 'true') {
+        return; // Already set up
     }
-
-    const messagesForChannel = appStateDep.chatHistory.filter(msg => msg.channelId === appStateDep.currentActiveChannelId);
-
-    // NEW: Organize messages for threading
-    const messagesById = new Map();
-    const childrenByParentId = new Map();
-
-    messagesForChannel.forEach(msg => {
-        messagesById.set(msg.msgId, msg);
-        if (msg.parentId) {
-            if (!childrenByParentId.has(msg.parentId)) {
-                childrenByParentId.set(msg.parentId, []);
+    chatArea.dataset.reactiveSetup = 'true';
+    
+    // Create a reactive render that updates when appStateDep.chatHistory or currentActiveChannelId changes
+    const chatElement = await render({
+        tagName: 'div',
+        attributes: { class: 'chat-messages-container' },
+        children: async () => {
+            if (!appStateDep || !appStateDep.currentActiveChannelId) {
+                return [{
+                    tagName: 'div',
+                    attributes: { class: 'system-message' },
+                    children: ['Select a channel to start chatting.']
+                }];
             }
-            childrenByParentId.get(msg.parentId).push(msg.msgId);
-        }
-    });
 
-    // Render top-level messages
-    messagesForChannel.forEach(msg => {
-        if (!msg.parentId) {
-            renderMessageAndThread(msg, 0, messagesById, childrenByParentId, chatArea);
-        }
-    });
+            // Access chatHistory.length to ensure Lightview tracks array changes
+            const historyLength = appStateDep.chatHistory.length;
+            const messagesForChannel = (appStateDep.chatHistory || []).filter(
+                msg => msg.channelId === appStateDep.currentActiveChannelId
+            );
 
-    chatArea.scrollTop = chatArea.scrollHeight;
+            // Organize messages for threading
+            const messagesById = new Map();
+            const childrenByParentId = new Map();
+
+            messagesForChannel.forEach(msg => {
+                messagesById.set(msg.msgId, msg);
+                if (msg.parentId) {
+                    if (!childrenByParentId.has(msg.parentId)) {
+                        childrenByParentId.set(msg.parentId, []);
+                    }
+                    childrenByParentId.get(msg.parentId).push(msg.msgId);
+                }
+            });
+
+            // Render top-level messages (those without a parent)
+            const topLevelMessages = messagesForChannel.filter(msg => !msg.parentId);
+            const messageElements = [];
+            
+            for (const msg of topLevelMessages) {
+                const threadElement = await createMessageThreadElement(msg, 0, messagesById, childrenByParentId);
+                messageElements.push(threadElement);
+            }
+            
+            // Scroll to bottom after rendering
+            setTimeout(() => {
+                if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
+            }, 0);
+
+            return messageElements;
+        }
+    }, { state: appStateDep });
+    
+    chatArea.innerHTML = '';
+    chatArea.appendChild(chatElement);
 }
 
-// NEW: Recursive function to render a message and its replies.
+// Helper function to create a message thread element (message + its replies)
+async function createMessageThreadElement(msgObject, depth, messagesById, childrenByParentId) {
+    const isSelf = msgObject.senderPeerId === localGeneratedPeerIdDep;
+    const isSystem = msgObject.isSystem || false;
+    
+    const messageDesc = createMessageDescription(msgObject, isSelf, isSystem, depth);
+    
+    // Get child messages
+    const childIds = childrenByParentId.get(msgObject.msgId) || [];
+    const childElements = [];
+    
+    for (const childId of childIds) {
+        const childMsg = messagesById.get(childId);
+        if (childMsg) {
+            const childElement = await createMessageThreadElement(childMsg, depth + 1, messagesById, childrenByParentId);
+            childElements.push(childElement);
+        }
+    }
+    
+    // Create thread container with message and replies
+    return {
+        tagName: 'div',
+        attributes: { class: 'message-thread-container' },
+        children: [
+            messageDesc,
+            ...(childElements.length > 0 ? [{
+                tagName: 'div',
+                attributes: { class: 'thread-replies-container' },
+                children: childElements
+            }] : [])
+        ]
+    };
+}
+
+// Legacy function - kept for backward compatibility but now uses Lightview
 function renderMessageAndThread(msgObject, depth, messagesById, childrenByParentId, container) {
     // Render the message itself
     const threadContainer = document.createElement('div');
@@ -575,122 +680,156 @@ function renderMessageAndThread(msgObject, depth, messagesById, childrenByParent
 }
 
 
-// MODIFIED: displayMessage is now more of a pure renderer.
-// It takes a container to append to and knows the thread depth.
-function displayMessage(msgObject, isSelf = false, isSystem = false, container, depth = 0) {
-    if (!container) return;
+// Converts a message object into a Lightview render description
+function createMessageDescription(msgObject, isSelf = false, isSystem = false, depth = 0) {
     const { msgId, senderNickname, message, pmInfo, fileMeta, timestamp } = msgObject;
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message');
+    
     const displayTimestamp = timestamp ? new Date(timestamp) : new Date();
     const hours = String(displayTimestamp.getHours()).padStart(2, '0');
     const minutes = String(displayTimestamp.getMinutes()).padStart(2, '0');
     const timestampStr = `${hours}:${minutes}`;
-    const timestampSpan = document.createElement('span');
-    timestampSpan.classList.add('timestamp');
-    timestampSpan.textContent = timestampStr;
-
+    
+    const messageClasses = ['message'];
+    let messageContent = [];
+    
     if (isSystem) {
-        messageDiv.classList.add('system-message');
-        messageDiv.appendChild(document.createTextNode(message + " "));
+        messageClasses.push('system-message');
+        messageContent.push((message || '') + " ");
     } else if (pmInfo) {
-        // PMs are not threaded, so they are always top-level.
-        messageDiv.classList.add('pm');
-        messageDiv.classList.add(isSelf ? 'self' : 'other');
-        const pmContextSpan = document.createElement('span');
-        pmContextSpan.classList.add('pm-info');
-        pmContextSpan.textContent = pmInfo.type === 'sent' ? `To ${pmInfo.recipient}:` : `From ${pmInfo.sender}:`;
-        messageDiv.appendChild(pmContextSpan);
-        messageDiv.appendChild(document.createTextNode(message + " "));
+        messageClasses.push('pm', isSelf ? 'self' : 'other');
+        messageContent.push({
+            tagName: 'span',
+            attributes: { class: 'pm-info' },
+            children: [pmInfo.type === 'sent' ? `To ${pmInfo.recipient || 'unknown'}:` : `From ${pmInfo.sender || 'unknown'}:`]
+        });
+        messageContent.push((message || '') + " ");
     } else if (fileMeta) {
-        messageDiv.classList.add(isSelf ? 'self' : 'other');
-        messageDiv.classList.add('file-message');
+        messageClasses.push(isSelf ? 'self' : 'other', 'file-message');
         
-        const senderSpan = document.createElement('span'); senderSpan.classList.add('sender');
-        senderSpan.textContent = isSelf ? 'You' : senderNickname;
-        messageDiv.appendChild(senderSpan);
-
-        const fileInfoContainer = document.createElement('div');
-        fileInfoContainer.classList.add('file-info-container');
-
-        const previewLink = document.createElement('a'); 
-        previewLink.classList.add('chat-file-preview-link');
-        previewLink.title = `Click to download ${fileMeta.name}`; 
-        if (fileMeta.blobUrl) {
-            previewLink.href = fileMeta.blobUrl;
-            previewLink.download = fileMeta.name;
-        } else {
-            previewLink.href = "#"; 
-            previewLink.onclick = (e) => e.preventDefault(); 
-        }
-
+        // Sender span
+        messageContent.push({
+            tagName: 'span',
+            attributes: { class: 'sender' },
+            children: [isSelf ? 'You' : (senderNickname || 'Unknown')]
+        });
+        
+        // File info container
+        const fileInfoChildren = [];
+        
+        // Preview link if applicable
         if (fileMeta.previewDataURL) {
-            const previewImg = document.createElement('img');
-            previewImg.src = fileMeta.previewDataURL;
-            previewImg.alt = `Preview of ${fileMeta.name}`;
-            previewImg.classList.add('chat-file-preview');
-            previewLink.appendChild(previewImg); 
-            fileInfoContainer.appendChild(previewLink);
+            fileInfoChildren.push({
+                tagName: 'a',
+                attributes: {
+                    class: 'chat-file-preview-link',
+                    href: fileMeta.blobUrl || '#',
+                    download: fileMeta.blobUrl ? fileMeta.name : undefined,
+                    title: `Click to download ${fileMeta.name}`
+                },
+                children: [{
+                    tagName: 'img',
+                    attributes: {
+                        class: 'chat-file-preview',
+                        src: fileMeta.previewDataURL,
+                        alt: `Preview of ${fileMeta.name}`
+                    },
+                    children: []
+                }]
+            });
         }
-
-        const fileTextInfoSpan = document.createElement('span');
-        fileTextInfoSpan.classList.add('file-text-info');
-        const fileNameStrong = document.createElement('strong');
-        fileNameStrong.textContent = fileMeta.name;
-        const fileSizeSpan = document.createTextNode(` (${(fileMeta.size / 1024).toFixed(2)} KB) `);
         
-        fileTextInfoSpan.appendChild(document.createTextNode("Shared: "));
-        fileTextInfoSpan.appendChild(fileNameStrong);
-        fileTextInfoSpan.appendChild(fileSizeSpan);
+        // File text info
+        const fileTextChildren = [
+            'Shared: ',
+            { tagName: 'strong', children: [fileMeta.name || 'unknown.file'], attributes: {} },
+            ` (${((fileMeta.size || 0) / 1024).toFixed(2)} KB) `
+        ];
         
-        if (!fileMeta.previewDataURL && fileMeta.blobUrl) { 
-            const downloadLink = document.createElement('a');
-            downloadLink.href = fileMeta.blobUrl;
-            downloadLink.download = fileMeta.name;
-            downloadLink.textContent = 'Download';
-            fileTextInfoSpan.appendChild(downloadLink);
+        if (!fileMeta.previewDataURL && fileMeta.blobUrl) {
+            fileTextChildren.push({
+                tagName: 'a',
+                attributes: {
+                    href: fileMeta.blobUrl,
+                    download: fileMeta.name
+                },
+                children: ['Download']
+            });
         } else if (fileMeta.receiving || (!fileMeta.blobUrl && !isSelf)) {
-            const progressSpan = document.createElement('span');
             const safeSName = (isSelf ? (getLocalNicknameDep ? getLocalNicknameDep() : 'You') : senderNickname).replace(/\W/g, '');
             const safeFName = fileMeta.name.replace(/\W/g, '');
-            progressSpan.id = `file-progress-${safeSName}-${safeFName}`;
-            
             let initialProgressText = "";
             if (isSelf && fileMeta.receiving) initialProgressText = ` (Sending 0%)`;
             else if (!isSelf && !fileMeta.blobUrl) initialProgressText = ` (Receiving 0%)`;
             
-            progressSpan.textContent = initialProgressText;
-            if(initialProgressText) fileTextInfoSpan.appendChild(progressSpan);
-        } else if (isSelf && !fileMeta.receiving && fileMeta.blobUrl && !fileMeta.previewDataURL) { 
-             const sentSpan = document.createElement('span');
-             sentSpan.textContent = " (Sent)";
-             fileTextInfoSpan.appendChild(sentSpan);
+            if (initialProgressText) {
+                fileTextChildren.push({
+                    tagName: 'span',
+                    attributes: { id: `file-progress-${safeSName}-${safeFName}` },
+                    children: [initialProgressText]
+                });
+            }
+        } else if (isSelf && !fileMeta.receiving && fileMeta.blobUrl && !fileMeta.previewDataURL) {
+            fileTextChildren.push({
+                tagName: 'span',
+                children: [' (Sent)']
+            });
         }
-
-        fileInfoContainer.appendChild(fileTextInfoSpan);
-        messageDiv.appendChild(fileInfoContainer);
-
-    } else { 
-        messageDiv.classList.add(isSelf ? 'self' : 'other');
-        const senderSpan = document.createElement('span'); senderSpan.classList.add('sender');
-        senderSpan.textContent = isSelf ? 'You' : senderNickname;
-        messageDiv.appendChild(senderSpan);
-        messageDiv.appendChild(document.createTextNode(message + " "));
-    }
-
-    messageDiv.appendChild(timestampSpan);
-
-    // NEW: Add Reply button if not a system message and depth is not too great
-    if (!isSystem && !pmInfo && depth < MAX_THREAD_DEPTH) {
-        const replyBtn = document.createElement('button');
-        replyBtn.textContent = '↪';
-        replyBtn.title = 'Reply to this message';
-        replyBtn.classList.add('reply-btn');
-        replyBtn.onclick = () => startReplyToMessage(msgId);
-        messageDiv.appendChild(replyBtn);
+        
+        fileInfoChildren.push({
+            tagName: 'span',
+            attributes: { class: 'file-text-info' },
+            children: fileTextChildren
+        });
+        
+        messageContent.push({
+            tagName: 'div',
+            attributes: { class: 'file-info-container' },
+            children: fileInfoChildren
+        });
+    } else {
+        messageClasses.push(isSelf ? 'self' : 'other');
+        messageContent.push({
+            tagName: 'span',
+            attributes: { class: 'sender' },
+            children: [isSelf ? 'You' : (senderNickname || 'Unknown')]
+        });
+        messageContent.push((message || '') + " ");
     }
     
-    container.appendChild(messageDiv);
+    // Timestamp
+    messageContent.push({
+        tagName: 'span',
+        attributes: { class: 'timestamp' },
+        children: [timestampStr]
+    });
+    
+    // Reply button
+    if (!isSystem && !pmInfo && depth < MAX_THREAD_DEPTH) {
+        messageContent.push({
+            tagName: 'button',
+            attributes: {
+                class: 'reply-btn',
+                title: 'Reply to this message',
+                onClick: () => startReplyToMessage(msgId)
+            },
+            children: ['↪']
+        });
+    }
+    
+    return {
+        tagName: 'div',
+        attributes: { class: messageClasses.join(' ') },
+        children: messageContent
+    };
+}
+
+// Render a message and its thread using Lightview
+async function displayMessage(msgObject, isSelf = false, isSystem = false, container, depth = 0) {
+    if (!container) return;
+    
+    const messageDescription = createMessageDescription(msgObject, isSelf, isSystem, depth);
+    const messageElement = await render(messageDescription);
+    container.appendChild(messageElement);
 }
 
 
@@ -706,15 +845,14 @@ function addMessageToHistoryAndDisplay(msgData, isSelf = false, isSystem = false
         return;
     }
 
+    // Push to chatHistory - Lightview monitors array.length and will trigger reactive update
     appStateDep.chatHistory.push(msgData);
 
-    if (msgData.channelId === appStateDep.currentActiveChannelId) {
-        displayChatForCurrentChannel();
-    } else {
+    if (msgData.channelId !== appStateDep.currentActiveChannelId) {
         const channel = appStateDep.channels.find(c => c.id === msgData.channelId);
         if (channel) {
             channel.hasNotification = true;
-            renderChannelList();
+            // Property change on existing object will trigger reactivity
         }
         showNotificationDep('chatSection');
     }
@@ -907,13 +1045,7 @@ export function handleFileChunk(chunk, peerId, chunkMeta) {
         if (msgIndex !== -1) {
             const progress = (fileBuffer.receivedBytes / fileBuffer.meta.size) * 100;
             appStateDep.chatHistory[msgIndex].downloadProgress = progress;
-            
-            // This direct mutation won't trigger Lightview's reactivity for nested objects.
-            // A more robust way is to re-assign or use a method that signals a change.
-            // For simplicity here, we'll just re-render the whole chat.
-            if (appStateDep.chatHistory[msgIndex].channelId === appStateDep.currentActiveChannelId) {
-                displayChatForCurrentChannel();
-            }
+            // Lightview tracks property changes automatically
         }
 
         if (fileBuffer.receivedBytes === fileBuffer.meta.size) {
@@ -925,10 +1057,7 @@ export function handleFileChunk(chunk, peerId, chunkMeta) {
                 appStateDep.chatHistory[finalMsgIndex].isDownloading = false;
                 appStateDep.chatHistory[finalMsgIndex].downloadProgress = 100;
                 appStateDep.chatHistory[finalMsgIndex].fileUrl = fileUrl;
-                
-                if (appStateDep.chatHistory[finalMsgIndex].channelId === appStateDep.currentActiveChannelId) {
-                    displayChatForCurrentChannel();
-                }
+                // Lightview tracks property changes automatically
             }
             incomingFileBuffers.delete(chunkMeta.fileTransferId);
         }
@@ -947,10 +1076,8 @@ export function handleChatHistory(history, peerId) {
         }
     });
 
-    // Sort by timestamp to be sure
+    // Sort by timestamp - Lightview will detect the array mutation
     appStateDep.chatHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-    displayChatForCurrentChannel();
 }
 export function updateChatMessageInputPlaceholder() {
     if(messageInput) {
@@ -970,7 +1097,6 @@ export function handleCreateChannel(newChannelData, peerId) {
 
     if (!appStateDep.channels.find(ch => ch.id === newChannelData.id)) {
         appStateDep.channels.push(newChannelData);
-        renderChannelList();
         logStatusDep(`Channel "${newChannelData.name}" was created by ${getPeerNicknamesDep()[peerId] || 'a peer'}.`);
     }
 }
@@ -989,8 +1115,7 @@ export function handleInitialChannels(receivedChannels, peerId) {
     appStateDep.channels = Array.isArray(receivedChannels.channels) ? receivedChannels.channels : [];
     appStateDep.currentActiveChannelId = receivedChannels.activeId || null;
 
-    renderChannelList();
-    displayChatForCurrentChannel();
+    // Reactive components will update automatically when channels and currentActiveChannelId change
 }
 
 export function getShareableData() {
@@ -1024,14 +1149,13 @@ export function loadShareableData(data) {
     whiteboardModuleRef.loadShareableData(data.whiteboardHistory || []);
     documentModuleRef.loadShareableData(data.documents || {});
 
-    renderChannelList();
-    displayChatForCurrentChannel();
+    // Reactive components will update automatically when state changes
 }
 function loadChatHistoryFromImport(importedHistory) {
     // This function is now effectively merged into loadShareableData
     if (Array.isArray(importedHistory)) {
         appStateDep.chatHistory = importedHistory;
-        displayChatForCurrentChannel();
+        // Reactive component will update automatically
     }
 }
 

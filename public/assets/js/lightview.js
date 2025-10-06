@@ -219,7 +219,7 @@ const dateMutatingMethods = [
         },
         set(target, property, value, receiver) {
             const oldValue = Reflect.get(target, property, receiver);
-            if (Object.is(oldValue, value)) {
+            if ((property!=='length' || !Array.isArray(target)) && Object.is(oldValue, value)) {
                 return true;
             }
             
